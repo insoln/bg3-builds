@@ -16,6 +16,17 @@ const absentTags = requiredTags.filter(
 const classCount = fixtureEntities.filter((entity) => entity.kind === "class").length;
 const itemCount = fixtureEntities.filter((entity) => entity.kind === "item").length;
 const issues = validateProvenance(fixtureEntities, fixtureSources, fixtureClaims);
+for (const entity of fixtureEntities) {
+  const actTags = entity.tags.filter((tag) => /^act-[123]$/.test(tag));
+  const availableAct = (entity.metadata?.["engine"] as { availableAct?: unknown } | undefined)?.availableAct;
+  if (actTags.length !== 1 || availableAct !== Number(actTags[0]?.at(-1))) {
+    issues.push({
+      code: "act-metadata",
+      message: `Expected ${entity.id} to have one Act tag matching engine.availableAct`,
+      entityId: entity.id,
+    });
+  }
+}
 
 if (classCount !== 12) {
   issues.push({

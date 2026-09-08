@@ -174,8 +174,19 @@ function fixtureDescription(definition: FixtureDefinition): string {
   return `Curated fixture supporting ${roles.join(", ") || "general"} build searches.`;
 }
 
+function fixtureAct(definition: FixtureDefinition): 1 | 2 | 3 {
+  const acts = definition.tags.filter((tag) => /^act-[123]$/.test(tag));
+  if (acts.length !== 1) throw new Error(`Fixture ${definition.id} must have exactly one Act tag`);
+  return Number(acts[0]!.at(-1)) as 1 | 2 | 3;
+}
+
 function createFixtureEntity(definition: FixtureDefinition): GameEntity {
-  const act = definition.tags.find((tag) => tag.startsWith("act-"));
+  const availableAct = fixtureAct(definition);
+  const declaredAct = definition.engine?.["availableAct"];
+  if (declaredAct !== undefined && declaredAct !== availableAct) {
+    throw new Error(`Fixture ${definition.id} engine.availableAct conflicts with its act-${availableAct} tag`);
+  }
+  const engine = { ...definition.engine, availableAct };
   return gameEntitySchema.parse({
     id: definition.id,
     slug: definition.slug,
@@ -189,8 +200,8 @@ function createFixtureEntity(definition: FixtureDefinition): GameEntity {
     ...(definition.id === "item-titanstring-bow" ? { iconUrl: titanstringBowIconUrl } : {}),
     metadata: {
       fixture: true,
-      ...(act ? { act } : {}),
-      ...(definition.engine ? { engine: definition.engine } : {}),
+      act: `act-${availableAct}`,
+      engine,
     },
   });
 }

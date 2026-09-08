@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { InMemoryEngineRepository, validateBuild, type Build } from "@bg3-builds/domain";
 import {
   ClaimRepository,
   ConversationRepository,
@@ -59,6 +60,18 @@ describe("data layer", () => {
     });
     expect(r.messages("c").map((x) => x.content)).toEqual(["a", "b"]);
     db.close();
+  });
+  it("normalizes Act tags into engine metadata and rejects later-act equipment", () => {
+    const riskyRing = fixtureEntities.find((entity) => entity.id === "item-risky-ring");
+    expect(riskyRing?.metadata?.["engine"]).toMatchObject({ availableAct: 2 });
+    const build: Build = {
+      name: "Act one ring", gameVersion: "Patch 8", level: 1, raceId: "race-human",
+      classes: [{ classId: "class-fighter", level: 1 }],
+      abilityScores: { strength: 16, dexterity: 14, constitution: 14, intelligence: 10, wisdom: 10, charisma: 10 },
+      choices: [], feats: [], preparedSpells: [], equipment: [{ slot: "ring-1", itemId: "item-risky-ring" }],
+    };
+    expect(validateBuild(build, new InMemoryEngineRepository(fixtureEntities), { availableAct: 1 }).issues)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ code: "act-unavailable", entityId: "item-risky-ring" })]));
   });
   it("validates complete provenance", () => {
     expect(validateProvenance(fixtureEntities, fixtureSources, fixtureClaims)).toEqual([]);
