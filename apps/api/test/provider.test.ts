@@ -1,0 +1,15 @@
+import type Anthropic from "@anthropic-ai/sdk";
+import { describe, expect, it, vi } from "vitest";
+import { AnthropicMessageProvider, type AnthropicMessagesClient, type AnthropicStreamLike } from "../src/provider.js";
+import type { GameDataReader } from "../src/tools.js";
+function msg(reason: Anthropic.Message["stop_reason"], content: Anthropic.Message["content"]): Anthropic.Message { return { id:"m",type:"message",role:"assistant",model:"claude-opus-5",content,stop_reason:reason,stop_sequence:null,usage:{input_tokens:1,output_tokens:1} } as Anthropic.Message; }
+function fake(responses: Anthropic.Message[]): AnthropicMessagesClient { return { stream: vi.fn(() => { const next=responses.shift(); if(!next) throw Error("No response"); return { on(_event,listener){ for(const b of next.content) if(b.type==="text") listener(b.text); return this; }, finalMessage:async()=>next, abort:vi.fn() } satisfies AnthropicStreamLike; }) }; }
+const reader: GameDataReader={searchEntities:vi.fn(async()=>[]),getEntity:vi.fn(async()=>undefined),validateBuild:vi.fn(),compareBuilds:vi.fn()}; const sink=()=>({text:vi.fn(),status:vi.fn()});
+describe("provider",()=>{
+ it("streams text",async()=>{const out=sink(); await new AnthropicMessageProvider(fake([msg("end_turn",[{type:"text",text:"Done",citations:null}])]),reader).complete([{role:"user",content:"Hi"}],out,new AbortController().signal); expect(out.text).toHaveBeenCalledWith("Done");});
+ it("returns parallel results in one user turn",async()=>{const uses=[{type:"tool_use",id:"a",name:"search_entities",input:{limit:2}},{type:"tool_use",id:"b",name:"get_entity",input:{id:"x"}}] as Anthropic.Message["content"]; const result=await new AnthropicMessageProvider(fake([msg("tool_use",uses),msg("end_turn",[])]),reader).complete([{role:"user",content:"Hi"}],sink(),new AbortController().signal); expect(result[1]?.role).toBe("user"); expect(Array.isArray(result[1]?.content)&&result[1].content).toHaveLength(2);});
+ it("resumes pause",async()=>{await expect(new AnthropicMessageProvider(fake([msg("pause_turn",[]),msg("end_turn",[])]),reader).complete([{role:"user",content:"Hi"}],sink(),new AbortController().signal)).resolves.toBeDefined();});
+ it("handles refusal",async()=>{await expect(new AnthropicMessageProvider(fake([msg("refusal",[])]),reader).complete([{role:"user",content:"Hi"}],sink(),new AbortController().signal)).resolves.toBeDefined();});
+ it("reports max tokens",async()=>{await expect(new AnthropicMessageProvider(fake([msg("max_tokens",[])]),reader).complete([{role:"user",content:"Hi"}],sink(),new AbortController().signal)).rejects.toThrow("token limit");});
+ it("honors cancellation",async()=>{const c=new AbortController();c.abort();await expect(new AnthropicMessageProvider(fake([]),reader).complete([{role:"user",content:"Hi"}],sink(),c.signal)).rejects.toBeDefined();});
+});

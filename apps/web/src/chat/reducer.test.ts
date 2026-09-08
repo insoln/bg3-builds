@@ -1,0 +1,8 @@
+import { describe, expect, it } from "vitest";
+import { chatReducer, initialChatState } from "./reducer";
+import { sampleReport } from "../mock";
+describe("chatReducer",()=>{
+ it("rekeys the pending response to the server message ID",()=>{ let state=chatReducer(initialChatState,{type:"submit",user:{id:"u",role:"user",text:"build"},assistantId:"client-a"}); state=chatReducer(state,{type:"event",event:{type:"message_start",messageId:"server-a"}}); state=chatReducer(state,{type:"event",event:{type:"text_delta",delta:"Answer"}}); expect(state.messages[1]).toMatchObject({id:"server-a",text:"Answer"}); });
+ it("accumulates deltas, tools, and a structured report",()=>{ let state=chatReducer(initialChatState,{type:"submit",user:{id:"u",role:"user",text:"build"},assistantId:"a"}); state=chatReducer(state,{type:"event",event:{type:"text_delta",delta:"First "}}); state=chatReducer(state,{type:"event",event:{type:"text_delta",delta:"answer"}}); state=chatReducer(state,{type:"event",event:{type:"tool_status",tool:{id:"rules",label:"Check rules",status:"running"}}}); state=chatReducer(state,{type:"event",event:{type:"tool_status",tool:{id:"rules",label:"Check rules",status:"complete"}}}); state=chatReducer(state,{type:"event",event:{type:"report",report:sampleReport}}); expect(state.messages[1]).toMatchObject({text:"First answer",tools:[{status:"complete"}],report:sampleReport}); });
+ it("ends streaming on errors",()=>{ let state=chatReducer(initialChatState,{type:"submit",user:{id:"u",role:"user",text:"build"},assistantId:"a"}); state=chatReducer(state,{type:"event",event:{type:"error",error:{message:"Unavailable"}}}); expect(state.status).toBe("error"); expect(state.messages[1]?.error).toBe("Unavailable"); });
+});
