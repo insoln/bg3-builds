@@ -3,19 +3,24 @@ import type { OptimizationReport } from "@bg3-builds/domain";
 export function OptimizationReportCard({ report }: { report: OptimizationReport }) {
   const { result } = report;
   return <section className="report-block optimization-report" aria-labelledby="optimization-title">
-    <p className="section-kicker">Bounded optimizer result</p>
+    <p className="section-kicker">Exact curated optimizer</p>
     <h2 id="optimization-title">{report.title}</h2>
     <p>{report.summary}</p>
     <dl className="metrics">
-      <div><dt>Score</dt><dd>{result.score.toFixed(2)}</dd></div>
-      <div><dt>Candidates evaluated</dt><dd>{result.bounds.evaluatedCandidates} / {result.bounds.maxCandidates}</dd></div>
+      <div><dt>Evaluated</dt><dd>{result.bounds.evaluatedCandidates} / {result.bounds.candidateSetSize}</dd></div>
+      <div><dt>Returned</dt><dd>Top {result.bounds.returnedCandidates}</dd></div>
       <div><dt>Scope</dt><dd>Level 5 · Act 1 · ranged</dd></div>
     </dl>
-    <p className="detail-line"><span>Recommended build</span>{result.build.name}</p>
-    <p className="detail-line"><span>Classes</span>{result.build.classes.map(entry => `${entry.classId} ${entry.level}`).join(" / ")}</p>
-    <div className="assumptions"><h3>Limits of this result</h3>
-      <p>This result is bounded and does not claim a global optimum.</p>
-      <ul>{result.limitations.map(limitation => <li key={limitation}>{limitation}</li>)}</ul>
+    <ol>{result.candidates.map(candidate => <li key={`${candidate.build.id}-${candidate.policy.sharpshooter}`}>
+      <strong>#{candidate.rank} {candidate.build.name}</strong>
+      <p>Expected damage: attack {candidate.attack.expected.toFixed(2)} · round 1 {candidate.oneRound.expected.toFixed(2)} · 3 rounds {candidate.threeRounds.expected.toFixed(2)}</p>
+      <p>Sharpshooter {candidate.policy.sharpshooter}; Archery and Extra Attack always applied. {candidate.policy.subclassResource}</p>
+      <p>{candidate.provenance.map((ref, index) => <span key={ref.entityId}>{index > 0 ? " · " : ""}<a href={ref.url} rel="noreferrer">{ref.label}</a></span>)}</p>
+    </li>)}</ol>
+    <div className="assumptions"><h3>Scope and validation</h3>
+      <p>{result.guarantee}</p>
+      <p>Validated {result.validation.validCandidates}; rejected {result.validation.rejectedCandidates}. This is not a global optimum.</p>
+      <ul>{result.unsupportedMechanics.map(mechanic => <li key={mechanic}>{mechanic} is unsupported and was not calculated.</li>)}</ul>
     </div>
   </section>;
 }

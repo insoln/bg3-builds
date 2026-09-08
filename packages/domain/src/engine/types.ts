@@ -10,10 +10,12 @@ export type ExplainTrace = {
 export type RangedDamageDice = { count: number; sides: number } & ({ flat: number } | { flat?: never });
 
 export type RangedMechanic =
-  | { kind: "weapon"; sourceEntityId: string; weaponType: "longbow" | "shortbow" | "hand-crossbow"; baseDamage: RangedDamageDice; damageType: "piercing" | "force"; attackAbility: "dexterity"; strengthDamage?: { ability: "strength"; minimumModifier: 1 } | undefined }
+  | { kind: "weapon"; sourceEntityId: string; weaponType: "longbow" | "shortbow" | "hand-crossbow"; baseDamage: RangedDamageDice; damageType: "piercing" | "force"; attackAbility: "dexterity"; attackBonus: number; strengthDamage?: { ability: "strength"; minimumModifier: 1 } | undefined }
   | { kind: "attack-bonus"; sourceEntityId: string; appliesTo: "ranged-weapon"; bonus: number }
   | { kind: "extra-attack"; sourceEntityId: string; minimumClassLevel: number; attacksPerAction: 2 }
-  | { kind: "sharpshooter"; sourceEntityId: string; attackRollPenalty: -5; damageBonus: 10 };
+  | { kind: "sharpshooter"; sourceEntityId: string; attackRollPenalty: -5; damageBonus: 10 }
+  | { kind: "battle-manoeuvre"; sourceEntityId: string; damageDie: { count: 1; sides: 8 }; usesPerShortRest: 4 }
+  | { kind: "dread-ambusher"; sourceEntityId: string; firstRoundExtraAttacks: 1; extraAttackDamage: { count: 1; sides: 8 } };
 
 export type EngineMetadata = {
   /** The earliest act in which the entity can be obtained or selected. */

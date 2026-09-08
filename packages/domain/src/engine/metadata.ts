@@ -7,10 +7,12 @@ const abilities = new Set<Ability>(["strength", "dexterity", "constitution", "in
 
 const rangedDamageDiceSchema = z.object({ count: z.int().min(1), sides: z.int().min(2), flat: z.number().finite().optional() }).strict();
 export const rangedMechanicSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("weapon"), sourceEntityId: z.string().trim().min(1), weaponType: z.enum(["longbow", "shortbow", "hand-crossbow"]), baseDamage: rangedDamageDiceSchema, damageType: z.enum(["piercing", "force"]), attackAbility: z.literal("dexterity"), strengthDamage: z.object({ ability: z.literal("strength"), minimumModifier: z.literal(1) }).strict().optional() }).strict(),
+  z.object({ kind: z.literal("weapon"), sourceEntityId: z.string().trim().min(1), weaponType: z.enum(["longbow", "shortbow", "hand-crossbow"]), baseDamage: rangedDamageDiceSchema, damageType: z.enum(["piercing", "force"]), attackAbility: z.literal("dexterity"), attackBonus: z.int().min(0).max(5).default(0), strengthDamage: z.object({ ability: z.literal("strength"), minimumModifier: z.literal(1) }).strict().optional() }).strict(),
   z.object({ kind: z.literal("attack-bonus"), sourceEntityId: z.string().trim().min(1), appliesTo: z.literal("ranged-weapon"), bonus: z.number().finite() }).strict(),
   z.object({ kind: z.literal("extra-attack"), sourceEntityId: z.string().trim().min(1), minimumClassLevel: z.int().min(1).max(12), attacksPerAction: z.literal(2) }).strict(),
   z.object({ kind: z.literal("sharpshooter"), sourceEntityId: z.string().trim().min(1), attackRollPenalty: z.literal(-5), damageBonus: z.literal(10) }).strict(),
+  z.object({ kind: z.literal("battle-manoeuvre"), sourceEntityId: z.string().trim().min(1), damageDie: z.object({ count: z.literal(1), sides: z.literal(8) }).strict(), usesPerShortRest: z.literal(4) }).strict(),
+  z.object({ kind: z.literal("dread-ambusher"), sourceEntityId: z.string().trim().min(1), firstRoundExtraAttacks: z.literal(1), extraAttackDamage: z.object({ count: z.literal(1), sides: z.literal(8) }).strict() }).strict(),
 ]);
 
 export function parseRangedMechanic(value: unknown): RangedMechanic | undefined {

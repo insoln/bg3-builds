@@ -82,7 +82,7 @@ export const gameTools: Anthropic.Tool[] = [
   definition("get_entity", "Get one Baldur's Gate 3 entity by its exact ID."),
   definition("validate_build", "Validate a complete Baldur's Gate 3 build and return its issues."),
   definition("compare_builds", "Compare two complete Baldur's Gate 3 builds."),
-  definition("optimize_build", "Find the best build only within the supported bounded Level 5, Act 1, single-target ranged search. This does not claim a global optimum and rejects surprise, guaranteed critical hits, and area attacks."),
+  definition("optimize_build", "Exactly rank the finite curated legal Level 5, Act 1, single-target ranged candidate set. Returns deterministic Top-K PMF summaries; this is not a global optimum and rejects surprise, guaranteed critical hits, and area attacks."),
 ];
 
 export async function executeGameTool(reader: GameDataReader, use: Anthropic.ToolUseBlock, signal?: AbortSignal): Promise<Anthropic.ToolResultBlockParam> {

@@ -85,8 +85,8 @@ export class AnthropicMessageProvider implements MessageProvider {
           if (parsed.success) {
             sink.report(optimizationReportSchema.parse({
               kind: "optimization",
-              title: `Bounded Level 5 Act 1 ranged result: ${parsed.data.build.name}`,
-              summary: `Evaluated ${parsed.data.bounds.evaluatedCandidates} candidates within the supported bounded search. This is not a global optimum.`,
+              title: `Act 1 ranged Top ${parsed.data.bounds.returnedCandidates}: ${parsed.data.candidates[0]!.build.name}`,
+              summary: `Exactly evaluated all ${parsed.data.bounds.evaluatedCandidates} legal candidates in the declared curated scope and returned a deterministic ranking. This is not a global optimum.`,
               result: parsed.data,
               generatedAt: new Date().toISOString(),
             }));
