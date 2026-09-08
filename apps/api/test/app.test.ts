@@ -47,6 +47,19 @@ describe("API", () => {
   ]);
   await app.close();
  });
+ it("reloads a persisted report even when its assistant turn has no text", async () => {
+  const store = new InMemoryConversationStore();
+  const conversation = await store.create({});
+  const reportingProvider: MessageProvider = { complete: vi.fn(async (_messages, sink) => {
+   sink.report(report);
+   return [{ role: "assistant" as const, content: [] }];
+  }) };
+  const app = buildApp({ store, provider: reportingProvider });
+  await app.inject({ method: "POST", url: `/api/v1/conversations/${conversation.id}/messages`, payload: { content: "Optimize" } });
+  const reloaded = (await app.inject({ method: "GET", url: `/api/v1/conversations/${conversation.id}` })).json().data;
+  expect(reloaded.messages.at(-1)).toEqual(expect.objectContaining({ role: "assistant", text: "", report }));
+  await app.close();
+ });
  it("does not stream an unpersisted report when generation fails", async () => {
   const store = new InMemoryConversationStore();
   const conversation = await store.create({});

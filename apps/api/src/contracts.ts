@@ -58,7 +58,9 @@ export function toPublicConversation(conversation: Conversation): PublicConversa
         .map((block) => block.text)
         .join("");
       const report = conversation.reports.find((attachment) => attachment.assistantMessageIndex === index)?.report;
-      return text ? [{ id, role, text, ...(report === undefined ? {} : { report }) }] : [];
+      return text || report !== undefined
+        ? [{ id, role, text, ...(report === undefined ? {} : { report }) }]
+        : [];
     }),
   };
 }
