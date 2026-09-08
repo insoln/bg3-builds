@@ -12,6 +12,16 @@ describe("exact dice PMFs", () => {
     expect(twoD6.get(12)).toBeCloseTo(1 / 36);
     expect(repeatPmf(d6, 0)).toEqual(new Map([[0, 1]]));
   });
+
+  it("rejects invalid or unbounded public helper inputs", () => {
+    expect(() => dicePmf({ count: 13, sides: 6 })).toThrow();
+    expect(() => dicePmf({ count: 1, sides: Number.POSITIVE_INFINITY })).toThrow();
+    expect(() => repeatPmf(new Map([[0, 1]]), 21)).toThrow(RangeError);
+    expect(() => repeatPmf(new Map([[0, 0.5]]), 2)).toThrow(/sum to 1/);
+    expect(() => repeatPmf(new Map([[Number.NaN, 1]]), 2)).toThrow(/safe integers/);
+    expect(() => convolvePmfs(new Map([[0, Number.NaN]]), new Map([[0, 1]]))).toThrow(/finite/);
+    expect(() => convolvePmfs(new Map([[Number.MAX_SAFE_INTEGER, 1]]), new Map([[1, 1]]))).toThrow(/safe integer/);
+  });
 });
 
 describe("attack roll classification", () => {

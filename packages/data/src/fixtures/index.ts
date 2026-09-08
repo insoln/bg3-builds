@@ -209,16 +209,21 @@ function createFixtureEntity(definition: FixtureDefinition): GameEntity {
 export const fixtureEntities: GameEntity[] =
   fixtureDefinitions.map(createFixtureEntity);
 
+const fixtureSourceBase = {
+  name: "BG3 Wiki",
+  kind: "curated" as const,
+  gameVersion: version,
+  retrievedAt: "2026-09-07T00:00:00.000Z",
+  license: "CC BY-NC-SA 4.0; curated facts and original fixture descriptions",
+};
+
 export const fixtureSources: SourceRecord[] = [
-  {
-    id: "bg3-wiki-patch-8",
-    name: "BG3 Wiki",
-    kind: "curated",
-    gameVersion: version,
-    url: "https://bg3.wiki/",
-    retrievedAt: "2026-09-07T00:00:00.000Z",
-    license: "CC BY-NC-SA 4.0; curated facts and original fixture descriptions",
-  },
+  { id: "bg3-wiki-patch-8", ...fixtureSourceBase },
+  ...fixtureEntities.map((entity) => ({
+    id: `bg3-wiki-patch-8:${entity.id}`,
+    ...fixtureSourceBase,
+    url: entity.source.url!,
+  })),
 ];
 
 export const fixtureClaims: Claim[] = fixtureEntities.flatMap((entity) => [

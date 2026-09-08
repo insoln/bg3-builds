@@ -88,6 +88,12 @@ describe("data layer", () => {
     expect(validateProvenance([
       { ...fixtureEntities[0]!, source: { ...fixtureEntities[0]!.source, url: "https://example.test/wiki/Barbarian" } },
     ], fixtureSources, [])).toEqual(expect.arrayContaining([expect.objectContaining({ code: "unregistered-source" })]));
+    expect(validateProvenance([
+      { ...fixtureEntities[0]!, source: { ...fixtureEntities[0]!.source, url: "https://bg3.wiki/wiki/Unregistered" } },
+    ], fixtureSources, [])).toEqual(expect.arrayContaining([expect.objectContaining({ code: "unregistered-source" })]));
+    expect(validateProvenance([
+      { ...fixtureEntities[0]!, source: { ...fixtureEntities[0]!.source, gameVersion: "Patch 7" } },
+    ], fixtureSources, [])).toEqual(expect.arrayContaining([expect.objectContaining({ code: "unregistered-source" })]));
   });
   it("parses offline XML and HTML", () => {
     expect(

@@ -1,4 +1,4 @@
-import { attackInputSchema, type AttackInput, type AttackRollMode, type ResolvedDamagePacket, type DiceExpression, type ResolvedAttackInput, type ResolvedTargetDamageModifiers } from "../schemas/index.js";
+import { attackInputSchema, diceExpressionSchema, type AttackInput, type AttackRollMode, type ResolvedDamagePacket, type DiceExpression, type ResolvedAttackInput, type ResolvedTargetDamageModifiers } from "../schemas/index.js";
 
 export type IntegerPmf = ReadonlyMap<number, number>;
 export type AttackOutcome = "miss" | "hit" | "critical";
@@ -27,19 +27,62 @@ export type AttackPmfResult = {
 const one = new Map([[0, 1]]);
 const MAX_REPEATED_ATTACKS = 20;
 const MAX_REPEATED_DAMAGE_SUPPORT = 12_800;
+const MAX_PUBLIC_PMF_ENTRIES = 12_801;
+const MAX_PUBLIC_CONVOLUTION_PAIRS = 1_000_000;
+const PMF_NORMALIZATION_TOLERANCE = 1e-9;
 
 function addProbability(target: Map<number, number>, value: number, probability: number): void {
   target.set(value, (target.get(value) ?? 0) + probability);
 }
 
-export function convolvePmfs(left: IntegerPmf, right: IntegerPmf): IntegerPmf {
+function validatePmf(pmf: IntegerPmf, name: string): { minimum: number; maximum: number } {
+  if (pmf.size === 0 || pmf.size > MAX_PUBLIC_PMF_ENTRIES) throw new RangeError(`${name} must have between 1 and ${MAX_PUBLIC_PMF_ENTRIES} outcomes`);
+  let total = 0;
+  let minimum = Infinity;
+  let maximum = -Infinity;
+  for (const [value, probability] of pmf) {
+    if (!Number.isSafeInteger(value)) throw new RangeError(`${name} outcomes must be safe integers`);
+    if (!Number.isFinite(probability) || probability < 0) throw new RangeError(`${name} probabilities must be finite and non-negative`);
+    total += probability;
+    minimum = Math.min(minimum, value);
+    maximum = Math.max(maximum, value);
+  }
+  if (!Number.isFinite(total) || Math.abs(total - 1) > PMF_NORMALIZATION_TOLERANCE) throw new RangeError(`${name} probabilities must sum to 1`);
+  return { minimum, maximum };
+}
+
+function convolvePmfsUnchecked(left: IntegerPmf, right: IntegerPmf): IntegerPmf {
   const result = new Map<number, number>();
   for (const [leftValue, leftProbability] of left) for (const [rightValue, rightProbability] of right) addProbability(result, leftValue + rightValue, leftProbability * rightProbability);
   return result;
 }
 
+export function convolvePmfs(left: IntegerPmf, right: IntegerPmf): IntegerPmf {
+  const leftSupport = validatePmf(left, "left PMF");
+  const rightSupport = validatePmf(right, "right PMF");
+  if (left.size * right.size > MAX_PUBLIC_CONVOLUTION_PAIRS) throw new RangeError("PMF convolution has too many outcome pairs");
+  if (leftSupport.maximum - leftSupport.minimum + rightSupport.maximum - rightSupport.minimum > MAX_REPEATED_DAMAGE_SUPPORT) throw new RangeError("convolved PMF support is too wide");
+  if (!Number.isSafeInteger(leftSupport.minimum + rightSupport.minimum) || !Number.isSafeInteger(leftSupport.maximum + rightSupport.maximum)) throw new RangeError("convolved PMF outcomes exceed safe integer arithmetic");
+  return convolvePmfsUnchecked(left, right);
+}
+
+function repeatPmfUnchecked(pmf: IntegerPmf, count: number): IntegerPmf {
+  let result: IntegerPmf = one;
+  let factor = pmf;
+  let remaining = count;
+  while (remaining > 0) {
+    if (remaining % 2 === 1) result = convolvePmfsUnchecked(result, factor);
+    remaining = Math.floor(remaining / 2);
+    if (remaining > 0) factor = convolvePmfsUnchecked(factor, factor);
+  }
+  return result;
+}
+
 export function repeatPmf(pmf: IntegerPmf, count: number): IntegerPmf {
-  if (!Number.isInteger(count) || count < 0) throw new RangeError("count must be a non-negative integer");
+  if (!Number.isInteger(count) || count < 0 || count > MAX_REPEATED_ATTACKS) throw new RangeError(`count must be an integer between 0 and ${MAX_REPEATED_ATTACKS}`);
+  const { minimum, maximum } = validatePmf(pmf, "PMF");
+  if ((maximum - minimum) * count > MAX_REPEATED_DAMAGE_SUPPORT) throw new RangeError("repeated PMF support is too wide");
+  if (!Number.isSafeInteger(minimum * count) || !Number.isSafeInteger(maximum * count)) throw new RangeError("repeated PMF outcomes exceed safe integer arithmetic");
   let result: IntegerPmf = one;
   let factor = pmf;
   let remaining = count;
@@ -51,11 +94,15 @@ export function repeatPmf(pmf: IntegerPmf, count: number): IntegerPmf {
   return result;
 }
 
-export function dicePmf(dice: DiceExpression): IntegerPmf {
+function dicePmfUnchecked(dice: DiceExpression): IntegerPmf {
   if (dice.count === 0) return one;
   const die = new Map<number, number>();
   for (let face = 1; face <= dice.sides; face += 1) die.set(face, 1 / dice.sides);
-  return repeatPmf(die, dice.count);
+  return repeatPmfUnchecked(die, dice.count);
+}
+
+export function dicePmf(dice: DiceExpression): IntegerPmf {
+  return dicePmfUnchecked(diceExpressionSchema.parse(dice));
 }
 
 function rollProbability(roll: number, mode: AttackRollMode): number {
@@ -76,7 +123,7 @@ export function classifyAttackRolls(input: Pick<ResolvedAttackInput, "attackBonu
 
 function packetPmf(packet: ResolvedDamagePacket, critical: boolean, target: ResolvedTargetDamageModifiers): IntegerPmf {
   let result: IntegerPmf = new Map([[packet.flat, 1]]);
-  for (const dice of packet.dice) result = convolvePmfs(result, dicePmf({ ...dice, count: dice.count * (critical && packet.crittable ? 2 : 1) }));
+  for (const dice of packet.dice) result = convolvePmfsUnchecked(result, dicePmfUnchecked({ ...dice, count: dice.count * (critical && packet.crittable ? 2 : 1) }));
   const multiplier = target.immunities.includes(packet.damageType) ? 0 : (target.vulnerabilities.includes(packet.damageType) ? 2 : 1) * (target.resistances.includes(packet.damageType) ? 0.5 : 1);
   const reduction = target.flatReduction + (target.flatReductionByType[packet.damageType] ?? 0);
   const mitigated = new Map<number, number>();
@@ -85,7 +132,7 @@ function packetPmf(packet: ResolvedDamagePacket, critical: boolean, target: Reso
 }
 
 function damagePmf(packets: readonly ResolvedDamagePacket[], critical: boolean, target: ResolvedTargetDamageModifiers): IntegerPmf {
-  return packets.reduce<IntegerPmf>((total, packet) => convolvePmfs(total, packetPmf(packet, critical, target)), one);
+  return packets.reduce<IntegerPmf>((total, packet) => convolvePmfsUnchecked(total, packetPmf(packet, critical, target)), one);
 }
 
 export function summarizePmf(pmf: IntegerPmf): DamageSummary {

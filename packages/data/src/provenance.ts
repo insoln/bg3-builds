@@ -12,11 +12,6 @@ function sourceKey(url: string, gameVersion: string): string {
   return `${url}\0${gameVersion}`;
 }
 
-function sourceOriginKey(url: string, gameVersion: string): string {
-  const parsed = new URL(url);
-  return `${parsed.protocol}//${parsed.host}\0${gameVersion}`;
-}
-
 export function validateProvenance(
   entities: readonly GameEntity[],
   sources: readonly SourceRecord[],
@@ -29,9 +24,6 @@ export function validateProvenance(
   );
   const registeredSources = new Set(
     sourcesWithUrls.map((source) => sourceKey(source.url, source.gameVersion)),
-  );
-  const registeredOrigins = new Set(
-    sourcesWithUrls.map((source) => sourceOriginKey(source.url, source.gameVersion)),
   );
   const issues: ProvenanceIssue[] = [];
 
@@ -47,7 +39,6 @@ export function validateProvenance(
     if (
       entity.source.url
       && !registeredSources.has(sourceKey(entity.source.url, entity.source.gameVersion))
-      && !registeredOrigins.has(sourceOriginKey(entity.source.url, entity.source.gameVersion))
     ) {
       issues.push({
         code: "unregistered-source",
