@@ -2,6 +2,7 @@ export * from "./attack-pmf.js";
 export * from "./expected-value.js";
 export * from "./generator.js";
 export * from "./metadata.js";
+export * from "./optimizer.js";
 export * from "./repository.js";
 export * from "./scorer.js";
 export * from "./stats.js";

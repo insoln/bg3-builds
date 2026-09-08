@@ -1,10 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { optimizationReportSchema, optimizerResultSchema } from "@bg3-builds/domain";
 import type { GameDataReader } from "./tools.js";
 import { executeGameTool, gameTools } from "./tools.js";
 
 export interface StreamSink {
   text(delta: string): void;
   status(status: "working" | "tool" | "paused"): void;
+  report(report: unknown): void;
 }
 
 export interface MessageProvider {
@@ -45,7 +47,7 @@ export class AnthropicMessageProvider implements MessageProvider {
         max_tokens: 64_000,
         thinking: { type: "adaptive" },
         output_config: { effort: "high" },
-        system: "You are a BG3 build expert. Use the read-only tools for game facts and respond in readable Markdown. When first mentioning a class, subclass, race, feat, spell, item, action, or passive returned by a tool, link its display name using the exact source.url from that tool result when present. You may include a small linked icon only when the tool result contains an exact iconUrl. Never construct or guess a URL from a name, ID, or slug; use ordinary text when the tool result has no URL. Link availability must not change the factual answer. Clearly distinguish unavailable data from facts. Never expose internal reasoning or tool payloads.",
+        system: "You are a BG3 build expert. For requests asking for the best, strongest, optimal, or min-max build, call optimize_build rather than claiming one from prose; state its bounded scope and limitations. Use the read-only tools for game facts and respond in readable Markdown. When first mentioning a class, subclass, race, feat, spell, item, action, or passive returned by a tool, link its display name using the exact source.url from that tool result when present. You may include a small linked icon only when the tool result contains an exact iconUrl. Never construct or guess a URL from a name, ID, or slug; use ordinary text when the tool result has no URL. Link availability must not change the factual answer. Clearly distinguish unavailable data from facts. Never expose internal reasoning or tool payloads.",
         tools: gameTools,
         messages,
       });
@@ -74,6 +76,25 @@ export class AnthropicMessageProvider implements MessageProvider {
       if (uses.length === 0) throw new Error("Claude requested tools without any tool calls");
       sink.status("tool");
       const results = await Promise.all(uses.map((use) => executeGameTool(this.reader, use, signal)));
+      for (const [index, use] of uses.entries()) {
+        if (use.name !== "optimize_build") continue;
+        const content = results[index]?.content;
+        if (typeof content !== "string") continue;
+        try {
+          const parsed = optimizerResultSchema.safeParse(JSON.parse(content));
+          if (parsed.success) {
+            sink.report(optimizationReportSchema.parse({
+              kind: "optimization",
+              title: `Bounded Level 5 Act 1 ranged result: ${parsed.data.build.name}`,
+              summary: `Evaluated ${parsed.data.bounds.evaluatedCandidates} candidates within the supported bounded search. This is not a global optimum.`,
+              result: parsed.data,
+              generatedAt: new Date().toISOString(),
+            }));
+          }
+        } catch {
+          // Tool errors are surfaced in the following tool turn; only valid results become reports.
+        }
+      }
       const toolTurn: Anthropic.MessageParam = { role: "user", content: results };
       generated.push(toolTurn);
       messages.push(toolTurn);

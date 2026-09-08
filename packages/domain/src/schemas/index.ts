@@ -2,6 +2,7 @@ export * from "./attack.js";
 export * from "./build.js";
 export * from "./effects.js";
 export * from "./entities.js";
+export * from "./optimization.js";
 export * from "./query.js";
 export * from "./report.js";
 export * from "./requirements.js";

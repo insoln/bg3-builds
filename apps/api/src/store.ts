@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type Anthropic from "@anthropic-ai/sdk";
-import type { Conversation, ConversationStore } from "./contracts.js";
+import type { Conversation, ConversationStore, PersistedReport } from "./contracts.js";
 
 function copy(conversation: Conversation): Conversation {
   return structuredClone(conversation);
@@ -20,7 +20,7 @@ export class InMemoryConversationStore implements ConversationStore {
 
   async create(input: { title?: string | undefined }): Promise<Conversation> {
     const now = new Date().toISOString();
-    const conversation: Conversation = { id: randomUUID(), createdAt: now, updatedAt: now, messages: [], ...(input.title === undefined ? {} : { title: input.title }) };
+    const conversation: Conversation = { id: randomUUID(), createdAt: now, updatedAt: now, messages: [], reports: [], ...(input.title === undefined ? {} : { title: input.title }) };
     this.#items.set(conversation.id, conversation);
     return copy(conversation);
   }
@@ -39,6 +39,14 @@ export class InMemoryConversationStore implements ConversationStore {
     const existing = this.#items.get(id);
     if (!existing) return undefined;
     const next = { ...existing, messages: [...existing.messages, ...structuredClone(messages)], updatedAt: new Date().toISOString() };
+    this.#items.set(id, next);
+    return copy(next);
+  }
+
+  async appendReports(id: string, reports: PersistedReport[]): Promise<Conversation | undefined> {
+    const existing = this.#items.get(id);
+    if (!existing) return undefined;
+    const next = { ...existing, reports: [...existing.reports, ...structuredClone(reports)], updatedAt: new Date().toISOString() };
     this.#items.set(id, next);
     return copy(next);
   }

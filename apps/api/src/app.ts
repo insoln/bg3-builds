@@ -9,6 +9,7 @@ import {
   updateConversationSchema,
   type ConversationStore,
 } from "./contracts.js";
+import { optimizationReportSchema, type OptimizationReport } from "@bg3-builds/domain";
 import type { MessageProvider, StreamSink } from "./provider.js";
 
 export interface AppDependencies {
@@ -23,6 +24,7 @@ const error = (code: string, message: string) => ({
 });
 
 type StreamChannel = StreamSink & {
+  readonly reports: OptimizationReport[];
   start(messageId: string): void;
   end(): void;
   fail(message: string): void;
@@ -39,9 +41,17 @@ function sse(reply: FastifyReply): StreamChannel {
   const send = (event: { type: string } & Record<string, unknown>) =>
     reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
 
+  const reports: OptimizationReport[] = [];
   return {
+    reports,
     start: (messageId) => send({ type: "message_start", messageId }),
     text: (delta) => send({ type: "text_delta", delta }),
+    report: (report) => {
+      const parsed = optimizationReportSchema.safeParse(report);
+      if (!parsed.success) return;
+      reports.push(parsed.data);
+      send({ type: "report", report: parsed.data });
+    },
     status: (status) =>
       send({
         type: "tool_status",
@@ -157,6 +167,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         );
         if (!controller.signal.aborted) {
           await dependencies.store.append(id, generated);
+          if (channel.reports.length) await dependencies.store.appendReports(id, channel.reports);
           channel.end();
         }
       } catch (cause) {

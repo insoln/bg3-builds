@@ -1,4 +1,4 @@
-import type { Conversation, StreamEvent } from "../types";
+import { parseStreamEvent, type Conversation, type StreamEvent } from "../types";
 
 interface ApiSuccess<T> {
   ok: true;
@@ -18,7 +18,7 @@ export async function* parseSSE(
     const payload = dataLines.join("\n");
     dataLines = [];
     try {
-      return JSON.parse(payload) as StreamEvent;
+      return parseStreamEvent(JSON.parse(payload));
     } catch {
       throw new Error("The server sent an invalid streaming event.");
     }

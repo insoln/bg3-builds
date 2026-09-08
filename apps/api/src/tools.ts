@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { buildSchema, entityKindSchema, type Build, type EntityKind, type GameEntity } from "@bg3-builds/domain";
+import { buildSchema, entityKindSchema, optimizationRequestSchema, type Build, type EntityKind, type GameEntity, type OptimizationRequest, type OptimizerResult } from "@bg3-builds/domain";
 import { z } from "zod";
 
 export interface GameDataReader {
@@ -7,6 +7,7 @@ export interface GameDataReader {
   getEntity(id: string, signal?: AbortSignal): Promise<GameEntity | undefined>;
   validateBuild(build: Build, signal?: AbortSignal): Promise<unknown>;
   compareBuilds(left: Build, right: Build, signal?: AbortSignal): Promise<unknown>;
+  optimizeBuild(input: OptimizationRequest, signal?: AbortSignal): Promise<OptimizerResult>;
 }
 
 export class EmptyGameDataReader implements GameDataReader {
@@ -14,6 +15,7 @@ export class EmptyGameDataReader implements GameDataReader {
   async getEntity(): Promise<GameEntity | undefined> { return undefined; }
   async validateBuild(build: Build): Promise<unknown> { return { valid: true, build, issues: [] }; }
   async compareBuilds(left: Build, right: Build): Promise<unknown> { return { left: left.name, right: right.name, differences: [] }; }
+  async optimizeBuild(): Promise<OptimizerResult> { throw new Error("Build optimization requires loaded game data."); }
 }
 
 const schemas = {
@@ -21,6 +23,7 @@ const schemas = {
   get_entity: z.object({ id: z.string().trim().min(1).max(160) }).strict(),
   validate_build: z.object({ build: buildSchema }).strict(),
   compare_builds: z.object({ left: buildSchema, right: buildSchema }).strict(),
+  optimize_build: z.object({ request: optimizationRequestSchema }).strict(),
 };
 
 type ToolName = keyof typeof schemas;
@@ -79,6 +82,7 @@ export const gameTools: Anthropic.Tool[] = [
   definition("get_entity", "Get one Baldur's Gate 3 entity by its exact ID."),
   definition("validate_build", "Validate a complete Baldur's Gate 3 build and return its issues."),
   definition("compare_builds", "Compare two complete Baldur's Gate 3 builds."),
+  definition("optimize_build", "Find the best build only within the supported bounded Level 5, Act 1, single-target ranged search. This does not claim a global optimum and rejects surprise, guaranteed critical hits, and area attacks."),
 ];
 
 export async function executeGameTool(reader: GameDataReader, use: Anthropic.ToolUseBlock, signal?: AbortSignal): Promise<Anthropic.ToolResultBlockParam> {
@@ -98,6 +102,7 @@ export async function executeGameTool(reader: GameDataReader, use: Anthropic.Too
         result = await reader.compareBuilds(input["left"], input["right"], signal);
         break;
       }
+      case "optimize_build": result = await reader.optimizeBuild(schemas.optimize_build.parse(use.input).request, signal); break;
       default: throw new Error(`Unknown tool: ${use.name}`);
     }
     signal?.throwIfAborted();

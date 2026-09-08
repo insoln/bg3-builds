@@ -1,10 +1,13 @@
 import {
   InMemoryEngineRepository,
+  optimizeBuild,
   rankBuilds,
   validateBuild,
   type Build,
   type EntityKind,
   type GameEntity,
+  type OptimizationRequest,
+  type OptimizerResult,
 } from "@bg3-builds/domain";
 import type { GameDataReader } from "./tools.js";
 
@@ -43,5 +46,9 @@ export class FixtureGameDataReader implements GameDataReader {
 
   async compareBuilds(left: Build, right: Build): Promise<unknown> {
     return rankBuilds([left, right], this.#repository);
+  }
+
+  async optimizeBuild(input: OptimizationRequest): Promise<OptimizerResult> {
+    return optimizeBuild(this.#repository, input);
   }
 }
