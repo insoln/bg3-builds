@@ -86,7 +86,7 @@ function damagePmf(packets: readonly ResolvedDamagePacket[], critical: boolean, 
   return packets.reduce<IntegerPmf>((total, packet) => convolvePmfs(total, packetPmf(packet, critical, target)), one);
 }
 
-export function summarizePmf(pmf: IntegerPmf, hitProbability = 0): DamageSummary {
+export function summarizePmf(pmf: IntegerPmf): DamageSummary {
   const values = [...pmf.entries()].sort(([left], [right]) => left - right);
   const expected = values.reduce((sum, [value, probability]) => sum + value * probability, 0);
   const variance = values.reduce((sum, [value, probability]) => sum + (value - expected) ** 2 * probability, 0);
@@ -96,7 +96,7 @@ export function summarizePmf(pmf: IntegerPmf, hitProbability = 0): DamageSummary
     return values.at(-1)?.[0] ?? 0;
   };
   return {
-    expected, minimum: values[0]?.[0] ?? 0, minimumOnHit: hitProbability > 0 ? values.find(([, probability]) => probability > 0)?.[0] ?? 0 : 0,
+    expected, minimum: values[0]?.[0] ?? 0, minimumOnHit: values.find(([value, probability]) => value > 0 && probability > 0)?.[0] ?? 0,
     nonCritMax: values.at(-1)?.[0] ?? 0, critMax: values.at(-1)?.[0] ?? 0,
     variance, stddev: Math.sqrt(variance), p10: quantile(0.1), median: quantile(0.5), p90: quantile(0.9), probabilityZero: pmf.get(0) ?? 0,
   };
@@ -112,11 +112,11 @@ export function calculateAttackPmf(rawInput: AttackInput): AttackPmfResult {
   const pmf = new Map<number, number>([[0, outcomes.get("miss") ?? 0]]);
   for (const [value, probability] of nonCritical) addProbability(pmf, value, probability * (outcomes.get("hit") ?? 0));
   for (const [value, probability] of critical) addProbability(pmf, value, probability * (outcomes.get("critical") ?? 0));
-  const summary = summarizePmf(pmf, 1 - (outcomes.get("miss") ?? 0));
+  const summary = summarizePmf(pmf);
   const hitOutcomes = new Map<number, number>();
   if ((outcomes.get("hit") ?? 0) > 0) for (const [value, probability] of nonCritical) addProbability(hitOutcomes, value, probability);
   if ((outcomes.get("critical") ?? 0) > 0) for (const [value, probability] of critical) addProbability(hitOutcomes, value, probability);
-  summary.minimumOnHit = [...hitOutcomes.keys()].sort((left, right) => left - right)[0] ?? 0;
+  summary.minimumOnHit = [...hitOutcomes.keys()].filter((value) => value > 0).sort((left, right) => left - right)[0] ?? 0;
   summary.nonCritMax = Math.max(...nonCritical.keys());
   summary.critMax = Math.max(...critical.keys());
   return {

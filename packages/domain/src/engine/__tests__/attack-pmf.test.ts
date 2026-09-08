@@ -63,6 +63,8 @@ describe("attack PMF", () => {
   it("supports repeated attacks and summary percentiles", () => {
     const result = repeatAttacks(base, 2);
     expect(result.pmf.get(0)).toBeCloseTo(0.45 ** 2);
+    // One successful base attack can deal 1d6 + 2, so repeated attacks retain a 3-damage floor.
+    expect(result.summary.minimumOnHit).toBe(3);
     expect(result.summary.variance).toBeGreaterThan(0);
     expect(result.summary.stddev).toBeGreaterThan(0);
     expect(result.summary.p10).toBeLessThanOrEqual(result.summary.median);
