@@ -15,6 +15,7 @@ const SHARPSHOOTER_POLICIES = [false, true] as const;
 const ARCHERY_ID = "passive-archery";
 const EXTRA_ATTACK_ID = "passive-extra-attack";
 const SHARPSHOOTER_ID = "feat-sharpshooter";
+const ACTION_SURGE_ID = "action-action-surge";
 const RACE_ID = "race-human";
 const UNSUPPORTED = ["surprise", "guaranteed critical hits / Executioner", "area-of-effect and multiple targets"];
 
@@ -30,7 +31,7 @@ function buildFor(classOption: typeof CLASS_OPTIONS[number], weaponId: string): 
     gameVersion: "Patch 8", level: 5, raceId: RACE_ID,
     classes: [{ ...classOption, level: 5 }],
     abilityScores: { strength: 16, dexterity: 16, constitution: 14, intelligence: 8, wisdom: 12, charisma: 8 },
-    choices: [{ level: 1, choiceId: "fighting-style", optionIds: [ARCHERY_ID] }], feats: [SHARPSHOOTER_ID], preparedSpells: [],
+    choices: [{ level: classOption.classId === "class-fighter" ? 1 : 2, choiceId: "fighting-style", optionIds: [ARCHERY_ID] }], feats: [SHARPSHOOTER_ID], preparedSpells: [],
     equipment: [{ slot: "ranged-main-hand", itemId: weaponId }],
   };
 }
@@ -44,7 +45,8 @@ export function optimizeBuild(repository: EngineRepository, input: OptimizationR
   const archery = mechanic(repository, ARCHERY_ID);
   const extraAttack = mechanic(repository, EXTRA_ATTACK_ID);
   const sharpshooter = mechanic(repository, SHARPSHOOTER_ID);
-  if (archery.kind !== "attack-bonus" || extraAttack.kind !== "extra-attack" || sharpshooter.kind !== "sharpshooter") throw new Error("Required ranged policy metadata has an unexpected kind.");
+  const actionSurge = mechanic(repository, ACTION_SURGE_ID);
+  if (archery.kind !== "attack-bonus" || extraAttack.kind !== "extra-attack" || sharpshooter.kind !== "sharpshooter" || actionSurge.kind !== "action-surge") throw new Error("Required ranged policy metadata has an unexpected kind.");
 
   const generated = CLASS_OPTIONS.flatMap(classOption => WEAPON_IDS.flatMap(weaponId => SHARPSHOOTER_POLICIES.map(sharpshooterEnabled => ({ classOption, weaponId, sharpshooterEnabled, build: buildFor(classOption, weaponId) }))));
   const rejected: string[] = [];
@@ -70,18 +72,17 @@ export function optimizeBuild(repository: EngineRepository, input: OptimizationR
     let threeRoundsPmf: IntegerPmf;
     let subclassResource: string;
     if (subclass.kind === "battle-manoeuvre") {
-      const boostedInput = { ...attackInput, packets: [...packets, { damageType: weapon.damageType, dice: [subclass.damageDie], flat: 0, crittable: true }] };
-      const boostedTwo = repeatAttacks(boostedInput, 2);
-      oneRoundPmf = boostedTwo.pmf;
-      threeRoundsPmf = combine(repeatAttacks(boostedInput, subclass.usesPerShortRest).pmf, repeatAttacks(attackInput, 6 - subclass.usesPerShortRest).pmf);
-      subclassResource = "Battle Master: spend superiority dice on up to 4 attacks over 3 rounds";
+      const boostedInput = { ...attackInput, packets: [{ ...packets[0]!, dice: [...packets[0]!.dice, subclass.damageDie] }] };
+      oneRoundPmf = repeatAttacks(boostedInput, 4).pmf;
+      threeRoundsPmf = combine(repeatAttacks(boostedInput, subclass.usesPerShortRest).pmf, repeatAttacks(attackInput, 8 - subclass.usesPerShortRest).pmf);
+      subclassResource = "Battle Master: Action Surge in round 1; declare one manoeuvre on each of the first 4 attacks";
     } else {
-      const ambushInput = { ...attackInput, packets: [...packets, { damageType: weapon.damageType, dice: [subclass.extraAttackDamage], flat: 0, crittable: true }] };
+      const ambushInput = { ...attackInput, packets: [{ ...packets[0]!, dice: [...packets[0]!.dice, subclass.extraAttackDamage] }] };
       oneRoundPmf = combine(normalTwo.pmf, calculateAttackPmf(ambushInput).pmf);
       threeRoundsPmf = combine(repeatAttacks(attackInput, 6).pmf, calculateAttackPmf(ambushInput).pmf);
       subclassResource = "Gloom Stalker: Dread Ambusher once in round 1";
     }
-    const refs = [candidate.classOption.classId, candidate.classOption.subclassId, candidate.weaponId, ARCHERY_ID, EXTRA_ATTACK_ID, SHARPSHOOTER_ID].map(entityId => {
+    const refs = [candidate.classOption.classId, candidate.classOption.subclassId, candidate.weaponId, ARCHERY_ID, EXTRA_ATTACK_ID, SHARPSHOOTER_ID, ...(candidate.classOption.classId === "class-fighter" ? [ACTION_SURGE_ID] : [])].map(entityId => {
       const entity = repository.getEntity(entityId)!;
       if (!entity.source.url) throw new Error(`Required provenance URL is missing: ${entityId}`);
       return { entityId, label: entity.text.name, url: entity.source.url, mechanic: entityId === candidate.weaponId ? "weapon" : entityId === ARCHERY_ID ? "Archery" : entityId === EXTRA_ATTACK_ID ? "Extra Attack" : entityId === SHARPSHOOTER_ID ? "Sharpshooter policy" : "class eligibility" };

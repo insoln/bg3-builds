@@ -4,7 +4,7 @@ import { buildSchema } from "./build.js";
 
 /** The intentionally narrow, exhaustively enumerable search slice currently supported. */
 export const optimizationRequestSchema = z.object({
-  gameVersion: z.string().trim().min(1).max(80),
+  gameVersion: z.literal("Patch 8"),
   level: z.literal(5),
   availableAct: z.literal(1),
   combat: z.object({

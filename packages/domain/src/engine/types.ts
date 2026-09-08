@@ -15,7 +15,8 @@ export type RangedMechanic =
   | { kind: "extra-attack"; sourceEntityId: string; minimumClassLevel: number; attacksPerAction: 2 }
   | { kind: "sharpshooter"; sourceEntityId: string; attackRollPenalty: -5; damageBonus: 10 }
   | { kind: "battle-manoeuvre"; sourceEntityId: string; damageDie: { count: 1; sides: 8 }; usesPerShortRest: 4 }
-  | { kind: "dread-ambusher"; sourceEntityId: string; firstRoundExtraAttacks: 1; extraAttackDamage: { count: 1; sides: 8 } };
+  | { kind: "dread-ambusher"; sourceEntityId: string; firstRoundExtraAttacks: 1; extraAttackDamage: { count: 1; sides: 8 } }
+  | { kind: "action-surge"; sourceEntityId: string; extraActionsPerShortRest: 1 };
 
 export type EngineMetadata = {
   /** The earliest act in which the entity can be obtained or selected. */

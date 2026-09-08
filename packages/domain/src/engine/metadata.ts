@@ -13,6 +13,7 @@ export const rangedMechanicSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("sharpshooter"), sourceEntityId: z.string().trim().min(1), attackRollPenalty: z.literal(-5), damageBonus: z.literal(10) }).strict(),
   z.object({ kind: z.literal("battle-manoeuvre"), sourceEntityId: z.string().trim().min(1), damageDie: z.object({ count: z.literal(1), sides: z.literal(8) }).strict(), usesPerShortRest: z.literal(4) }).strict(),
   z.object({ kind: z.literal("dread-ambusher"), sourceEntityId: z.string().trim().min(1), firstRoundExtraAttacks: z.literal(1), extraAttackDamage: z.object({ count: z.literal(1), sides: z.literal(8) }).strict() }).strict(),
+  z.object({ kind: z.literal("action-surge"), sourceEntityId: z.string().trim().min(1), extraActionsPerShortRest: z.literal(1) }).strict(),
 ]);
 
 export function parseRangedMechanic(value: unknown): RangedMechanic | undefined {

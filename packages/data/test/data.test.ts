@@ -127,6 +127,8 @@ describe("data layer", () => {
     expect(first.validation).toEqual({ generatedCandidates: 16, validCandidates: 16, rejectedCandidates: 0, rejectionReasons: {} });
     expect(first.candidates.map(candidate => candidate.rank)).toEqual([1, 2, 3, 4, 5]);
     expect(first.candidates.every(candidate => candidate.provenance.length >= 6)).toBe(true);
+    expect(first.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-ranger").every(candidate => candidate.build.choices[0]?.level === 2)).toBe(true);
+    expect(first.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-fighter").every(candidate => candidate.provenance.some(ref => ref.entityId === "action-action-surge"))).toBe(true);
     expect(first.candidates[0]!.oneRound.expected).toBeGreaterThanOrEqual(first.candidates[1]!.oneRound.expected);
   });
   it("uses target mitigation, roll mode, and Titanstring Strength rider in exact PMFs", () => {
