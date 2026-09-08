@@ -1,0 +1,10 @@
+.git
+.claude
+node_modules
+**/node_modules
+**/dist
+coverage
+*.tsbuildinfo
+**/*.tsbuildinfo
+.env
+.env.*

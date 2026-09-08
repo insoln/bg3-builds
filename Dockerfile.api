@@ -1,0 +1,21 @@
+FROM node:22-bookworm-slim AS build
+
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY packages/domain/package.json packages/domain/package.json
+COPY packages/data/package.json packages/data/package.json
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+COPY apps/api apps/api
+COPY packages/domain packages/domain
+COPY packages/data packages/data
+RUN pnpm --filter @bg3-builds/api... exec tsc -b --force
+
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3001
+EXPOSE 3001
+CMD ["node", "apps/api/dist/index.js"]
