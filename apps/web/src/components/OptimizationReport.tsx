@@ -1,4 +1,5 @@
 import type { OptimizationReport } from "@bg3-builds/domain";
+import { EntityLink } from "./EntityLink";
 
 interface OptimizationReportCardProps {
   report: OptimizationReport;
@@ -19,7 +20,7 @@ export function OptimizationReportCard({ report }: OptimizationReportCardProps):
       <strong>#{candidate.rank} {candidate.build.name}</strong>
       <p>Expected damage: attack {candidate.attack.expected.toFixed(2)} · round 1 {candidate.oneRound.expected.toFixed(2)} · 3 rounds {candidate.threeRounds.expected.toFixed(2)}</p>
       <p>Sharpshooter {candidate.policy.sharpshooter}; Archery and Extra Attack always applied. {candidate.policy.subclassResource}</p>
-      <p>{candidate.provenance.map((ref, index) => <span key={ref.entityId}>{index > 0 ? " · " : ""}<a href={ref.url} rel="noreferrer">{ref.label}</a></span>)}</p>
+      <p>{candidate.provenance.map((ref, index) => <span key={ref.entityId}>{index > 0 ? " · " : ""}<EntityLink href={ref.url} iconUrl={ref.iconUrl}>{ref.label}</EntityLink></span>)}</p>
     </li>)}</ol>
     <div className="assumptions"><h3>Scope and validation</h3>
       <p>{result.guarantee}</p>

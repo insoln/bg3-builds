@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Assumption, CalculationRow, Citation, StructuredBuildReport } from "../types";
+import { EntityLink } from "./EntityLink";
 
 function Badge({ tone, children }: { tone: "good" | "warn" | "bad" | "neutral"; children: ReactNode }) {
   return <span className={`badge badge--${tone}`}>{children}</span>;
@@ -16,15 +17,7 @@ function safeHttpsUrl(value: string | undefined): string | undefined {
 }
 
 function CitationLink({ citation, children }: { citation: Citation; children?: ReactNode }) {
-  const href = safeHttpsUrl(citation.url);
-  const iconUrl = safeHttpsUrl(citation.iconUrl);
-  const content = children ?? citation.label;
-  if (!href) return <>{content}</>;
-  const showIcon = iconUrl && new URL(iconUrl).hostname === "bg3.wiki";
-  return <a className="entity-link" href={href} target="_blank" rel="noopener noreferrer">
-    {showIcon && <img src={iconUrl} alt="" loading="lazy" decoding="async" onError={event => { event.currentTarget.hidden = true; }} />}
-    {content}
-  </a>;
+  return <EntityLink href={citation.url} iconUrl={citation.iconUrl}>{children ?? citation.label}</EntityLink>;
 }
 
 export function BuildCard({ report }: { report: StructuredBuildReport }) {

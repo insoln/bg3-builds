@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { attackRollModeSchema, targetDamageModifiersSchema } from "./attack.js";
 import { buildSchema } from "./build.js";
+import { entityIconUrlSchema } from "./entities.js";
 
 /** The intentionally narrow, exhaustively enumerable search slice currently supported. */
 export const optimizationRequestSchema = z.object({
@@ -25,7 +26,13 @@ const damageSummarySchema = z.object({
   stddev: z.number().finite(), p10: z.number().finite(), median: z.number().finite(), p90: z.number().finite(), probabilityZero: z.number().min(0).max(1),
 }).strict();
 
-const provenanceRefSchema = z.object({ entityId: z.string().min(1), label: z.string().min(1), url: z.url(), mechanic: z.string().min(1) }).strict();
+const provenanceRefSchema = z.object({
+  entityId: z.string().min(1),
+  label: z.string().min(1),
+  url: z.url(),
+  iconUrl: entityIconUrlSchema.optional(),
+  mechanic: z.string().min(1),
+}).strict();
 const policySchema = z.object({ archery: z.literal("always"), extraAttack: z.literal("always"), sharpshooter: z.enum(["enabled", "disabled"]), subclassResource: z.string().min(1) }).strict();
 const rankedCandidateSchema = z.object({
   rank: z.int().positive(), build: buildSchema, weaponId: z.string().min(1),

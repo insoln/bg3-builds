@@ -56,6 +56,14 @@ function rejectionCounts(reasons: string[]): Record<string, number> {
   return Object.fromEntries([...new Set(reasons)].sort().map(reason => [reason, reasons.filter(value => value === reason).length]));
 }
 
+function provenanceMechanic(entityId: string, weaponId: string): string {
+  if (entityId === weaponId) return "weapon";
+  if (entityId === ARCHERY_ID) return "Archery";
+  if (entityId === EXTRA_ATTACK_ID) return "Extra Attack";
+  if (entityId === SHARPSHOOTER_ID) return "Sharpshooter policy";
+  return "class eligibility";
+}
+
 export function optimizeBuild(repository: EngineRepository, input: OptimizationRequest): OptimizerResult {
   const request = optimizationRequestSchema.parse(input);
   const archery = mechanic(repository, ARCHERY_ID);
@@ -102,7 +110,13 @@ export function optimizeBuild(repository: EngineRepository, input: OptimizationR
     const refs = [candidate.classOption.classId, candidate.classOption.subclassId, candidate.weaponId, ARCHERY_ID, EXTRA_ATTACK_ID, SHARPSHOOTER_ID, ...(candidate.classOption.classId === "class-fighter" ? [ACTION_SURGE_ID] : [])].map(entityId => {
       const entity = repository.getEntity(entityId)!;
       if (!entity.source.url) throw new Error(`Required provenance URL is missing: ${entityId}`);
-      return { entityId, label: entity.text.name, url: entity.source.url, mechanic: entityId === candidate.weaponId ? "weapon" : entityId === ARCHERY_ID ? "Archery" : entityId === EXTRA_ATTACK_ID ? "Extra Attack" : entityId === SHARPSHOOTER_ID ? "Sharpshooter policy" : "class eligibility" };
+      return {
+        entityId,
+        label: entity.text.name,
+        url: entity.source.url,
+        mechanic: provenanceMechanic(entityId, candidate.weaponId),
+        ...(entity.iconUrl === undefined ? {} : { iconUrl: entity.iconUrl }),
+      };
     });
     return [{
       ...candidate,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Build, GameEntity } from "../../index.js";
-import { engineMetadata, expectedAttackDamage, gameEntitySchema, generateCandidates, hitChance, InMemoryEngineRepository, mitigateDamage, parseRangedMechanic, rankBuilds, resolveStats, validateBuild } from "../../index.js";
+import { engineMetadata, expectedAttackDamage, gameEntitySchema, generateCandidates, hitChance, InMemoryEngineRepository, mitigateDamage, optimizerResultSchema, parseRangedMechanic, rankBuilds, resolveStats, validateBuild } from "../../index.js";
 
 const source = { source: "test", gameVersion: "1" };
 const entity = (id: string, kind: GameEntity["kind"], tags: string[] = [], engine?: Record<string, unknown>): GameEntity => ({ id, slug: id, kind, text: { name: id }, tags, source, ...(engine ? { metadata: { engine } } : {}) });
@@ -24,6 +24,25 @@ describe("entity schema", () => {
   });
   it("validates optional icon URLs", () => {
     expect(gameEntitySchema.safeParse({ ...entities[0], iconUrl: "https://bg3.wiki/icon.png" }).success).toBe(true);
+    const optimizerResult = {
+      request: { gameVersion: "Patch 8", level: 5, availableAct: 1 },
+      candidates: [{
+        rank: 1,
+        build: baseBuild({ gameVersion: "Patch 8", level: 5, classes: [{ classId: "fighter", level: 5 }] }),
+        weaponId: "bow",
+        score: 1,
+        attack: { expected: 1, minimum: 0, minimumOnHit: 1, nonCritMax: 1, critMax: 2, variance: 0, stddev: 0, p10: 0, median: 1, p90: 1, probabilityZero: 0 },
+        oneRound: { expected: 1, minimum: 0, minimumOnHit: 1, nonCritMax: 1, critMax: 2, variance: 0, stddev: 0, p10: 0, median: 1, p90: 1, probabilityZero: 0 },
+        threeRounds: { expected: 1, minimum: 0, minimumOnHit: 1, nonCritMax: 1, critMax: 2, variance: 0, stddev: 0, p10: 0, median: 1, p90: 1, probabilityZero: 0 },
+        policy: { archery: "always", extraAttack: "always", sharpshooter: "disabled", subclassResource: "test" },
+        provenance: ["a", "b", "c", "d"].map(entityId => ({ entityId, label: entityId, url: "https://bg3.wiki/wiki/Test", iconUrl: "https://example.com/icon.png", mechanic: "test" })),
+      }],
+      validation: { generatedCandidates: 1, validCandidates: 1, rejectedCandidates: 0, rejectionReasons: {} },
+      bounds: { evaluatedCandidates: 1, candidateSetSize: 1, returnedCandidates: 1, searchScope: "curated-l5-act1-ranged-v1", exactWithinDeclaredScope: true, globallyOptimal: false },
+      unsupportedMechanics: ["test"],
+      guarantee: "test",
+    };
+    expect(optimizerResultSchema.safeParse(optimizerResult).success).toBe(false);
     for (const iconUrl of [
       "not-a-url",
       "http://bg3.wiki/icon.png",
