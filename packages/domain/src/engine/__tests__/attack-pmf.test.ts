@@ -17,6 +17,8 @@ describe("exact dice PMFs", () => {
     expect(() => dicePmf({ count: 13, sides: 6 })).toThrow();
     expect(() => dicePmf({ count: 1, sides: Number.POSITIVE_INFINITY })).toThrow();
     expect(() => repeatPmf(new Map([[0, 1]]), 21)).toThrow(RangeError);
+    const dense = new Map(Array.from({ length: 1_001 }, (_, value) => [value, 1 / 1_001]));
+    expect(() => repeatPmf(dense, 2)).toThrow(/convolution pairs/);
     expect(() => repeatPmf(new Map([[0, 0.5]]), 2)).toThrow(/sum to 1/);
     expect(() => repeatPmf(new Map([[Number.NaN, 1]]), 2)).toThrow(/safe integers/);
     expect(() => convolvePmfs(new Map([[0, Number.NaN]]), new Map([[0, 1]]))).toThrow(/finite/);

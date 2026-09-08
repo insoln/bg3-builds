@@ -86,10 +86,17 @@ export function repeatPmf(pmf: IntegerPmf, count: number): IntegerPmf {
   let result: IntegerPmf = one;
   let factor = pmf;
   let remaining = count;
+  let remainingPairs = MAX_PUBLIC_CONVOLUTION_PAIRS;
+  const convolveWithinBudget = (left: IntegerPmf, right: IntegerPmf): IntegerPmf => {
+    const pairs = left.size * right.size;
+    if (pairs > remainingPairs) throw new RangeError("repeated PMF has too many convolution pairs");
+    remainingPairs -= pairs;
+    return convolvePmfs(left, right);
+  };
   while (remaining > 0) {
-    if (remaining % 2 === 1) result = convolvePmfs(result, factor);
+    if (remaining % 2 === 1) result = convolveWithinBudget(result, factor);
     remaining = Math.floor(remaining / 2);
-    if (remaining > 0) factor = convolvePmfs(factor, factor);
+    if (remaining > 0) factor = convolveWithinBudget(factor, factor);
   }
   return result;
 }
