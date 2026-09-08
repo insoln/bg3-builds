@@ -40,12 +40,25 @@ export class FixtureGameDataReader implements GameDataReader {
     return this.#repository.getEntity(id);
   }
 
-  async validateBuild(build: Build): Promise<unknown> {
-    return validateBuild(build, this.#repository);
+  async validateBuild(build: Build, options?: { availableAct?: 1 | 2 | 3 }): Promise<unknown> {
+    return validateBuild(build, this.#repository, options);
   }
 
-  async compareBuilds(left: Build, right: Build): Promise<unknown> {
-    return rankBuilds([left, right], this.#repository);
+  async compareBuilds(left: Build, right: Build, options?: { availableAct?: 1 | 2 | 3 }): Promise<unknown> {
+    const validation = {
+      left: validateBuild(left, this.#repository, options),
+      right: validateBuild(right, this.#repository, options),
+    };
+    const rejected = (Object.entries(validation) as Array<["left" | "right", typeof validation.left]>)
+      .filter(([, result]) => !result.valid)
+      .map(([build, result]) => ({ build, issues: result.issues }));
+
+    return {
+      validation,
+      accepted: rejected.length === 0,
+      rejected,
+      rankings: rejected.length === 0 ? rankBuilds([left, right], this.#repository) : [],
+    };
   }
 
   async optimizeBuild(input: OptimizationRequest): Promise<OptimizerResult> {
