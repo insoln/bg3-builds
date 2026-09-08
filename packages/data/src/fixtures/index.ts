@@ -230,7 +230,7 @@ export const fixtureClaims: Claim[] = fixtureEntities.flatMap((entity) => [
   {
     id: `${entity.id}:tags`,
     entityId: entity.id,
-    sourceId: "bg3-wiki-patch-8",
+    sourceId: `bg3-wiki-patch-8:${entity.id}`,
     field: "tags",
     value: entity.tags,
     evidence: `Classification curated for ${entity.text.name}.`,
@@ -239,7 +239,7 @@ export const fixtureClaims: Claim[] = fixtureEntities.flatMap((entity) => [
   ...(entity.metadata?.["engine"] ? [{
     id: `${entity.id}:engine`,
     entityId: entity.id,
-    sourceId: "bg3-wiki-patch-8",
+    sourceId: `bg3-wiki-patch-8:${entity.id}`,
     field: "metadata.engine",
     value: entity.metadata["engine"],
     evidence: `Mechanic metadata transcribed from the ${entity.text.name} source page for Patch 8 baseline evaluation.`,

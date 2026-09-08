@@ -99,6 +99,12 @@ describe("data layer", () => {
     expect(validateProvenance([
       { ...fixtureEntities[0]!, source: { ...fixtureEntities[0]!.source, gameVersion: "Patch 7" } },
     ], fixtureSources, [])).toEqual(expect.arrayContaining([expect.objectContaining({ code: "unregistered-source" })]));
+    expect(validateProvenance(fixtureEntities, fixtureSources, [
+      { ...fixtureClaims[0]!, sourceId: `bg3-wiki-patch-8:${fixtureEntities[1]!.id}` },
+    ])).toEqual(expect.arrayContaining([expect.objectContaining({ code: "source-mismatch", claimId: fixtureClaims[0]!.id })]));
+    expect(validateProvenance(fixtureEntities, fixtureSources, [
+      { ...fixtureClaims[0]!, locator: fixtureEntities[1]!.source.url },
+    ])).toEqual(expect.arrayContaining([expect.objectContaining({ code: "source-mismatch", claimId: fixtureClaims[0]!.id })]));
   });
   it("parses offline XML and HTML", () => {
     expect(
