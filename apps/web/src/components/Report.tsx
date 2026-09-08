@@ -5,6 +5,28 @@ function Badge({ tone, children }: { tone: "good" | "warn" | "bad" | "neutral"; 
   return <span className={`badge badge--${tone}`}>{children}</span>;
 }
 
+function safeHttpsUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function CitationLink({ citation, children }: { citation: Citation; children?: ReactNode }) {
+  const href = safeHttpsUrl(citation.url);
+  const iconUrl = safeHttpsUrl(citation.iconUrl);
+  const content = children ?? citation.label;
+  if (!href) return <>{content}</>;
+  const showIcon = iconUrl && new URL(iconUrl).hostname === "bg3.wiki";
+  return <a className="entity-link" href={href} target="_blank" rel="noopener noreferrer">
+    {showIcon && <img src={iconUrl} alt="" loading="lazy" decoding="async" onError={event => { event.currentTarget.hidden = true; }} />}
+    {content}
+  </a>;
+}
+
 export function BuildCard({ report }: { report: StructuredBuildReport }) {
   const b = report.build;
   const abilities = Object.entries(b.abilityScores);
@@ -27,8 +49,8 @@ export function BuildCard({ report }: { report: StructuredBuildReport }) {
 
 export function CalculationTable({ rows, citations }: { rows: CalculationRow[]; citations: Citation[] }) {
   if (!rows.length) return null;
-  const citationLabel = (id: string) => citations.find(c => c.id === id)?.label ?? id;
-  return <section className="report-block" aria-labelledby="calculations-title"><h3 id="calculations-title">How the numbers land</h3><div className="table-scroll"><table><thead><tr><th>Measure</th><th>Calculation</th><th>Result</th></tr></thead><tbody>{rows.map(row => <tr key={row.label}><th scope="row">{row.label}</th><td>{row.expression}{row.citationIds?.map(id => <sup key={id} title={citationLabel(id)}>[{id}]</sup>)}</td><td><strong>{row.result}</strong></td></tr>)}</tbody></table></div></section>;
+  const citationById = new Map(citations.map(citation => [citation.id, citation]));
+  return <section className="report-block" aria-labelledby="calculations-title"><h3 id="calculations-title">How the numbers land</h3><div className="table-scroll"><table><thead><tr><th>Measure</th><th>Calculation</th><th>Result</th></tr></thead><tbody>{rows.map(row => <tr key={row.label}><th scope="row">{row.label}</th><td>{row.expression}{row.citationIds?.map(id => { const citation = citationById.get(id); return <sup key={id} title={citation?.label ?? id}>{citation ? <CitationLink citation={citation}>[{id}]</CitationLink> : `[${id}]`}</sup>; })}</td><td><strong>{row.result}</strong></td></tr>)}</tbody></table></div></section>;
 }
 
 export function AssumptionsPanel({ assumptions, warnings }: { assumptions: Assumption[]; warnings: string[] | undefined }) {
@@ -43,7 +65,7 @@ export function AcquisitionTimeline({ steps }: { steps: StructuredBuildReport["a
 
 export function CitationList({ citations }: { citations: Citation[] }) {
   if (!citations.length) return null;
-  return <section className="report-block citations" aria-labelledby="sources-title"><h3 id="sources-title">Sources</h3><ol>{citations.map(c => <li key={c.id}><span>[{c.id}]</span><div>{c.url ? <a href={c.url} target="_blank" rel="noreferrer">{c.label}</a> : <strong>{c.label}</strong>}<p>{c.source}{c.detail ? ` — ${c.detail}` : ""}</p></div></li>)}</ol></section>;
+  return <section className="report-block citations" aria-labelledby="sources-title"><h3 id="sources-title">Sources</h3><ol>{citations.map(c => <li key={c.id}><span>[{c.id}]</span><div>{safeHttpsUrl(c.url) ? <CitationLink citation={c} /> : <strong>{c.label}</strong>}<p>{c.source}{c.detail ? ` — ${c.detail}` : ""}</p></div></li>)}</ol></section>;
 }
 
 export function StructuredReport({ report }: { report: StructuredBuildReport }) {

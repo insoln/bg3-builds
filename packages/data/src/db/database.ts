@@ -21,6 +21,11 @@ export function openDatabase(filename = ":memory:"): DataDatabase {
   const migrationUrl = new URL("../../migrations/0001_initial.sql", import.meta.url);
   sqlite.exec(readFileSync(fileURLToPath(migrationUrl), "utf8"));
 
+  const entityColumns = sqlite.pragma("table_info(entities)") as Array<{ name: string }>;
+  if (!entityColumns.some(({ name }) => name === "icon_url")) {
+    sqlite.exec("ALTER TABLE entities ADD COLUMN icon_url TEXT");
+  }
+
   return {
     sqlite,
     orm: drizzle(sqlite, { schema }),

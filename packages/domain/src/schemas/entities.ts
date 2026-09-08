@@ -63,6 +63,16 @@ export const equipmentSlotSchema = z.enum([
 
 export const raritySchema = z.enum(["common", "uncommon", "rare", "very-rare", "legendary", "story"]);
 
+export const entityIconUrlSchema = z.url().refine((value) => {
+  const url = URL.parse(value);
+  return url !== null
+    && url.protocol === "https:"
+    && url.hostname === "bg3.wiki"
+    && url.port === ""
+    && url.username === ""
+    && url.password === "";
+}, "Icon URL must use the canonical BG3 Wiki HTTPS origin");
+
 export const baseEntitySchema = z.object({
   id: entityIdSchema,
   slug: slugSchema,
@@ -70,6 +80,7 @@ export const baseEntitySchema = z.object({
   text: localizedTextSchema,
   tags: z.array(z.string().trim().min(1)).default([]),
   source: sourceReferenceSchema,
+  iconUrl: entityIconUrlSchema.optional(),
 }).strict();
 
 export const gameEntitySchema = baseEntitySchema.extend({

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Build, GameEntity } from "../../index.js";
-import { expectedAttackDamage, generateCandidates, hitChance, InMemoryEngineRepository, mitigateDamage, rankBuilds, resolveStats, validateBuild } from "../../index.js";
+import { expectedAttackDamage, gameEntitySchema, generateCandidates, hitChance, InMemoryEngineRepository, mitigateDamage, rankBuilds, resolveStats, validateBuild } from "../../index.js";
 
 const source = { source: "test", gameVersion: "1" };
 const entity = (id: string, kind: GameEntity["kind"], tags: string[] = [], engine?: Record<string, unknown>): GameEntity => ({ id, slug: id, kind, text: { name: id }, tags, source, ...(engine ? { metadata: { engine } } : {}) });
@@ -15,6 +15,22 @@ const entities = [
 ];
 const repository = new InMemoryEngineRepository(entities);
 const baseBuild = (patch: Partial<Build> = {}): Build => ({ name: "Test", gameVersion: "1", level: 4, raceId: "human", classes: [{ classId: "fighter", level: 4 }], abilityScores: { strength: 16, dexterity: 14, constitution: 14, intelligence: 10, wisdom: 10, charisma: 10 }, choices: [], feats: [], preparedSpells: [], equipment: [], ...patch });
+
+describe("entity schema", () => {
+  it("validates optional icon URLs", () => {
+    expect(gameEntitySchema.safeParse({ ...entities[0], iconUrl: "https://bg3.wiki/icon.png" }).success).toBe(true);
+    for (const iconUrl of [
+      "not-a-url",
+      "http://bg3.wiki/icon.png",
+      "https://example.com/icon.png",
+      "https://bg3.wiki.example.com/icon.png",
+      "https://bg3.wiki:8443/icon.png",
+      "https://user@bg3.wiki/icon.png",
+    ]) {
+      expect(gameEntitySchema.safeParse({ ...entities[0], iconUrl }).success).toBe(false);
+    }
+  });
+});
 
 describe("validation", () => {
   it("checks level sums and act availability", () => {

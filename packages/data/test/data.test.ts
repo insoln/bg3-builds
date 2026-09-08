@@ -25,7 +25,13 @@ describe("data layer", () => {
       fixtureClaims.forEach((x) => claims.upsert(x));
     }
     expect(entities.list()).toHaveLength(fixtureEntities.length);
-    expect(entities.search("Titanstring")[0]?.id).toBe("item-titanstring-bow");
+    expect(entities.search("Titanstring")[0]).toMatchObject({
+      id: "item-titanstring-bow",
+      source: { url: "https://bg3.wiki/wiki/Titanstring_Bow" },
+      iconUrl: expect.stringContaining("Longbow_PlusOne_Icon.png"),
+    });
+    expect(entities.get("item-titanstring-bow")?.iconUrl).toContain("Longbow_PlusOne_Icon.png");
+    expect(entities.list().find((entity) => entity.id === "item-titanstring-bow")?.iconUrl).toContain("Longbow_PlusOne_Icon.png");
     expect(claims.forEntity("item-titanstring-bow")).toHaveLength(1);
     db.close();
   });
@@ -53,10 +59,18 @@ describe("data layer", () => {
     expect(r.messages("c").map((x) => x.content)).toEqual(["a", "b"]);
     db.close();
   });
-  it("validates complete provenance", () =>
-    expect(
-      validateProvenance(fixtureEntities, fixtureSources, fixtureClaims),
-    ).toEqual([]));
+  it("validates complete provenance", () => {
+    expect(validateProvenance(fixtureEntities, fixtureSources, fixtureClaims)).toEqual([]);
+    const titanstring = fixtureEntities.find((entity) => entity.id === "item-titanstring-bow");
+    expect(titanstring?.source.url).toBe("https://bg3.wiki/wiki/Titanstring_Bow");
+    expect(fixtureEntities.find((entity) => entity.id === "subclass-school-of-divination")?.source.url)
+      .toBe("https://bg3.wiki/wiki/Divination_School");
+    expect(titanstring?.iconUrl).toContain("Longbow_PlusOne_Icon.png");
+    expect(fixtureClaims.find((claim) => claim.entityId === titanstring?.id)?.locator).toBe(titanstring?.source.url);
+    expect(validateProvenance([
+      { ...fixtureEntities[0]!, source: { ...fixtureEntities[0]!.source, url: "https://example.test/wiki/Barbarian" } },
+    ], fixtureSources, [])).toEqual(expect.arrayContaining([expect.objectContaining({ code: "unregistered-source" })]));
+  });
   it("parses offline XML and HTML", () => {
     expect(
       parseMediaWikiXml(
@@ -65,12 +79,23 @@ describe("data layer", () => {
     ).toEqual({ title: "Bow", pageId: "1", revisionId: "2", text: "Damage" });
     expect(
       parseCanonicalHtml(
-        `<html><head><link rel="canonical" href="https://bg3.wiki/x"><meta name="description" content="d"></head><body><main><h1>Bow</h1><p>Damage</p></main></body></html>`,
+        `<html><head><link rel="canonical" href="https://bg3.wiki/wiki/Bow"><meta name="description" content="d"><meta property="og:image" content="/w/images/Bow.png"></head><body><main><h1>Bow</h1><p>Damage</p></main></body></html>`,
       ),
     ).toMatchObject({
       title: "Bow",
       description: "d",
-      canonicalUrl: "https://bg3.wiki/x",
+      canonicalUrl: "https://bg3.wiki/wiki/Bow",
+      iconUrl: "https://bg3.wiki/w/images/Bow.png",
+    });
+    expect(parseCanonicalHtml(
+      `<html><head><link rel="canonical" href="https://bg3.wiki/wiki/Bow"><meta property="og:image" content="https://example.test/tracker.png"></head><body><main><h1>Bow</h1><img src="/unrelated.png"><p>Damage</p></main></body></html>`,
+    ).iconUrl).toBeUndefined();
+    expect(parseCanonicalHtml(
+      `<html><head><link rel="canonical" href="/wiki/Bow"><meta property="og:image" content="/w/images/Bow.png"></head><body><main><h1>Bow</h1></main></body></html>`,
+      "https://bg3.wiki/saved/Bow",
+    )).toMatchObject({
+      canonicalUrl: "https://bg3.wiki/wiki/Bow",
+      iconUrl: "https://bg3.wiki/w/images/Bow.png",
     });
   });
   it("bounds and allowlists URL manifests", () => {

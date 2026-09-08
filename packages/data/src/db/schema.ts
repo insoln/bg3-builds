@@ -24,6 +24,7 @@ export const entities = sqliteTable(
     description: text(),
     tagsJson: text("tags_json").notNull(),
     sourceJson: text("source_json").notNull(),
+    iconUrl: text("icon_url"),
     metadataJson: text("metadata_json"),
     gameVersion: text("game_version").notNull(),
   },

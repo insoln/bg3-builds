@@ -5,7 +5,7 @@ export default defineConfig({
     extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
   },
   test: {
-    include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
+    include: ["apps/**/*.test.{ts,tsx}", "packages/**/*.test.{ts,tsx}"],
     coverage: {
       reporter: ["text", "json", "html"],
     },

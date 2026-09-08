@@ -45,7 +45,7 @@ export class AnthropicMessageProvider implements MessageProvider {
         max_tokens: 64_000,
         thinking: { type: "adaptive" },
         output_config: { effort: "high" },
-        system: "You are a BG3 build expert. Use the read-only tools for game facts. Clearly distinguish unavailable data from facts. Never expose internal reasoning or tool payloads.",
+        system: "You are a BG3 build expert. Use the read-only tools for game facts and respond in readable Markdown. When first mentioning a class, subclass, race, feat, spell, item, action, or passive returned by a tool, link its display name using the exact source.url from that tool result when present. You may include a small linked icon only when the tool result contains an exact iconUrl. Never construct or guess a URL from a name, ID, or slug; use ordinary text when the tool result has no URL. Link availability must not change the factual answer. Clearly distinguish unavailable data from facts. Never expose internal reasoning or tool payloads.",
         tools: gameTools,
         messages,
       });

@@ -1,7 +1,7 @@
 import type { Build, BuildMetrics, ReportIssue } from "@bg3-builds/domain";
 
 export type Confidence = "high" | "medium" | "low";
-export interface Citation { id: string; label: string; source: string; url?: string; detail?: string }
+export interface Citation { id: string; label: string; source: string; url?: string; iconUrl?: string; detail?: string }
 export interface CalculationRow { label: string; expression: string; result: string; citationIds?: string[] }
 export interface Assumption { id: string; label: string; value: string; impact?: string }
 export interface AcquisitionStep { act: 1 | 2 | 3; title: string; location?: string; items: string[]; missable?: boolean }
