@@ -132,5 +132,8 @@ export function calculateAttackPmf(rawInput: AttackInput): AttackPmfResult {
 export function repeatAttacks(input: AttackInput, count: number): AttackPmfResult {
   const attack = calculateAttackPmf(input);
   const pmf = repeatPmf(attack.pmf, count);
-  return { ...attack, pmf, summary: summarizePmf(pmf), trace: [...attack.trace, { step: "repeat-attacks", input: { count }, output: { outcomes: pmf.size } }] };
+  const summary = summarizePmf(pmf);
+  summary.nonCritMax = attack.summary.nonCritMax * count;
+  summary.critMax = attack.summary.critMax * count;
+  return { ...attack, pmf, summary, trace: [...attack.trace, { step: "repeat-attacks", input: { count }, output: { outcomes: pmf.size } }] };
 }

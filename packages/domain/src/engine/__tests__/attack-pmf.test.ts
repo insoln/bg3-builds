@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateAttackPmf, classifyAttackRolls, convolvePmfs, dicePmf, repeatAttacks, repeatPmf } from "../../index.js";
+import { attackInputSchema, calculateAttackPmf, classifyAttackRolls, convolvePmfs, dicePmf, repeatAttacks, repeatPmf } from "../../index.js";
 
 describe("exact dice PMFs", () => {
   it("builds exact integer dice distributions and convolves them", () => {
@@ -28,6 +28,12 @@ describe("attack roll classification", () => {
 });
 
 describe("attack PMF", () => {
+  it("rejects inputs that would make exact PMF calculation impractical or unsafe", () => {
+    const excessiveDice = Array.from({ length: 8 }, () => ({ damageType: "fire" as const, dice: [{ count: 12, sides: 20 }], flat: 0, crittable: true }));
+    expect(attackInputSchema.safeParse({ attackBonus: 5, armorClass: 15, packets: excessiveDice }).success).toBe(false);
+    expect(attackInputSchema.safeParse({ attackBonus: 5, armorClass: 15, packets: [{ damageType: "fire", dice: [], flat: Number.MAX_SAFE_INTEGER + 1, crittable: true }] }).success).toBe(false);
+  });
+
   const base = {
     attackBonus: 5, armorClass: 15, rollMode: "normal" as const, criticalThreshold: 20,
     packets: [{ damageType: "fire" as const, dice: [{ count: 1, sides: 6 }], flat: 2, crittable: true }],
@@ -65,6 +71,8 @@ describe("attack PMF", () => {
     expect(result.pmf.get(0)).toBeCloseTo(0.45 ** 2);
     // One successful base attack can deal 1d6 + 2, so repeated attacks retain a 3-damage floor.
     expect(result.summary.minimumOnHit).toBe(3);
+    expect(result.summary.nonCritMax).toBe(16);
+    expect(result.summary.critMax).toBe(28);
     expect(result.summary.variance).toBeGreaterThan(0);
     expect(result.summary.stddev).toBeGreaterThan(0);
     expect(result.summary.p10).toBeLessThanOrEqual(result.summary.median);
