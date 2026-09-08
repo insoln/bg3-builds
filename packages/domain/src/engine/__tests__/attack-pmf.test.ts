@@ -64,6 +64,8 @@ describe("attack PMF", () => {
     });
     expect(result.summary.minimumOnHit).toBe(21);
     expect(result.summary.critMax).toBe(21);
+    const oddResistance = calculateAttackPmf({ ...base, armorClass: 1, packets: [{ damageType: "fire", dice: [], flat: 5, crittable: true }], target: { resistances: ["fire"] } });
+    expect(oddResistance.summary.minimumOnHit).toBe(2);
   });
 
   it("supports repeated attacks and summary percentiles", () => {

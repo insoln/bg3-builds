@@ -59,7 +59,10 @@ describe("validation", () => {
 
 describe("calculations", () => {
   it("keeps hit chance monotonic", () => expect(hitChance(8, 15)).toBeGreaterThan(hitChance(4, 15)));
-  it("applies resistance before flat reduction", () => expect(mitigateDamage(10, "fire", ["fire"], 2).value).toBe(3));
+  it("floors resistance before flat reduction", () => {
+    expect(mitigateDamage(10, "fire", ["fire"], 2).value).toBe(3);
+    expect(mitigateDamage(5, "fire", ["fire"], 0).value).toBe(2);
+  });
   it("calculates expected damage and explain traces", () => {
     const result = expectedAttackDamage({ attackBonus: 5, armorClass: 15, damageOnHit: 10, damageType: "fire", resistances: ["fire"], flatReduction: 2 });
     expect(result.expectedDamage).toBeCloseTo(result.hitChance * 3);
