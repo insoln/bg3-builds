@@ -1,6 +1,10 @@
 import type { OptimizationReport } from "@bg3-builds/domain";
 
-export function OptimizationReportCard({ report }: { report: OptimizationReport }) {
+interface OptimizationReportCardProps {
+  report: OptimizationReport;
+}
+
+export function OptimizationReportCard({ report }: OptimizationReportCardProps): React.JSX.Element {
   const { result } = report;
   return <section className="report-block optimization-report" aria-labelledby="optimization-title">
     <p className="section-kicker">Exact curated optimizer</p>

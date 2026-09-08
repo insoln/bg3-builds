@@ -1,12 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { optimizationReportSchema, optimizerResultSchema } from "@bg3-builds/domain";
-import type { GameDataReader } from "./tools.js";
-import { executeGameTool, gameTools } from "./tools.js";
+import {
+  optimizationReportSchema,
+  optimizerResultSchema,
+  type OptimizationReport,
+} from "@bg3-builds/domain";
+import { executeGameTool, gameTools, type GameDataReader } from "./tools.js";
 
 export interface StreamSink {
   text(delta: string): void;
   status(status: "working" | "tool" | "paused"): void;
-  report(report: unknown): void;
+  report(report: OptimizationReport): void;
 }
 
 export interface MessageProvider {
@@ -76,31 +79,47 @@ export class AnthropicMessageProvider implements MessageProvider {
       if (uses.length === 0) throw new Error("Claude requested tools without any tool calls");
       sink.status("tool");
       const results = await Promise.all(uses.map((use) => executeGameTool(this.reader, use, signal)));
-      for (const [index, use] of uses.entries()) {
-        if (use.name !== "optimize_build") continue;
-        const content = results[index]?.content;
-        if (typeof content !== "string") continue;
-        try {
-          const parsed = optimizerResultSchema.safeParse(JSON.parse(content));
-          if (parsed.success) {
-            sink.report(optimizationReportSchema.parse({
-              kind: "optimization",
-              title: `Act 1 ranged Top ${parsed.data.bounds.returnedCandidates}: ${parsed.data.candidates[0]!.build.name}`,
-              summary: `Exactly evaluated all ${parsed.data.bounds.evaluatedCandidates} legal candidates in the declared curated scope and returned a deterministic ranking. This is not a global optimum.`,
-              result: parsed.data,
-              generatedAt: new Date().toISOString(),
-            }));
-          }
-        } catch {
-          // Tool errors are surfaced in the following tool turn; only valid results become reports.
-        }
-      }
+      for (const report of optimizationReports(uses, results)) sink.report(report);
       const toolTurn: Anthropic.MessageParam = { role: "user", content: results };
       generated.push(toolTurn);
       messages.push(toolTurn);
     }
     throw new Error("Claude exceeded the tool iteration limit");
   }
+}
+
+function parseJson(value: string): unknown | undefined {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function optimizationReports(
+  uses: Anthropic.ToolUseBlock[],
+  results: Anthropic.ToolResultBlockParam[],
+): OptimizationReport[] {
+  const reports: OptimizationReport[] = [];
+
+  for (const [index, use] of uses.entries()) {
+    if (use.name !== "optimize_build") continue;
+    const result = results[index];
+    if (result?.is_error || typeof result?.content !== "string") continue;
+
+    const parsed = optimizerResultSchema.safeParse(parseJson(result.content));
+    if (!parsed.success) continue;
+
+    reports.push(optimizationReportSchema.parse({
+      kind: "optimization",
+      title: `Act 1 ranged Top ${parsed.data.bounds.returnedCandidates}: ${parsed.data.candidates[0]!.build.name}`,
+      summary: `Exactly evaluated all ${parsed.data.bounds.evaluatedCandidates} legal candidates in the declared curated scope and returned a deterministic ranking. This is not a global optimum.`,
+      result: parsed.data,
+      generatedAt: new Date().toISOString(),
+    }));
+  }
+
+  return reports;
 }
 
 export class DeterministicFallbackProvider implements MessageProvider {

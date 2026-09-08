@@ -5,6 +5,7 @@ import {
   type OptimizationReport,
   type ReportIssue,
 } from "@bg3-builds/domain";
+import { z } from "zod";
 
 export type Confidence = "high" | "medium" | "low";
 export interface Citation { id: string; label: string; source: string; url?: string; iconUrl?: string; detail?: string }
@@ -27,7 +28,7 @@ export interface StructuredBuildReport {
 }
 
 export type ToolStatus = "queued" | "running" | "complete" | "error";
-export interface ToolActivity { id: string; label: string; status: ToolStatus; detail?: string }
+export interface ToolActivity { id: string; label: string; status: ToolStatus; detail?: string | undefined }
 export interface ChatMessage { id: string; role: "user" | "assistant"; text: string; report?: OptimizationReport; tools?: ToolActivity[]; error?: string }
 export interface Conversation {
   id: string;
@@ -43,16 +44,27 @@ export type StreamEvent =
   | { type: "tool_status"; tool: ToolActivity }
   | { type: "report"; report: OptimizationReport }
   | { type: "message_end" }
-  | { type: "error"; error: { code?: string; message: string } };
+  | { type: "error"; error: { code?: string | undefined; message: string } };
+
+const toolActivitySchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  status: z.enum(["queued", "running", "complete", "error"]),
+  detail: z.string().optional(),
+}).strict();
+
+const streamEventSchema: z.ZodType<StreamEvent> = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("message_start"), messageId: z.string() }).strict(),
+  z.object({ type: z.literal("text_delta"), delta: z.string() }).strict(),
+  z.object({ type: z.literal("tool_status"), tool: toolActivitySchema }).strict(),
+  z.object({ type: z.literal("report"), report: optimizationReportSchema }).strict(),
+  z.object({ type: z.literal("message_end") }).strict(),
+  z.object({
+    type: z.literal("error"),
+    error: z.object({ code: z.string().optional(), message: z.string() }).strict(),
+  }).strict(),
+]);
 
 export function parseStreamEvent(value: unknown): StreamEvent {
-  if (typeof value !== "object" || value === null || !("type" in value) || typeof value.type !== "string") throw new Error("Invalid streaming event.");
-  const event = value as { type: string; [key: string]: unknown };
-  if (event.type === "report") return { type: "report", report: optimizationReportSchema.parse(event["report"]) };
-  if (event.type === "message_start" && typeof event["messageId"] === "string") return { type: "message_start", messageId: event["messageId"] };
-  if (event.type === "text_delta" && typeof event["delta"] === "string") return { type: "text_delta", delta: event["delta"] };
-  if (event.type === "message_end") return { type: "message_end" };
-  if (event.type === "tool_status" && typeof event["tool"] === "object" && event["tool"] !== null) return { type: "tool_status", tool: event["tool"] as ToolActivity };
-  if (event.type === "error" && typeof event["error"] === "object" && event["error"] !== null && typeof (event["error"] as { message?: unknown }).message === "string") return { type: "error", error: event["error"] as { code?: string; message: string } };
-  throw new Error("Invalid streaming event.");
+  return streamEventSchema.parse(value);
 }

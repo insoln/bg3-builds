@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type Anthropic from "@anthropic-ai/sdk";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { ZodError } from "zod";
 import {
@@ -8,8 +9,9 @@ import {
   toPublicConversation,
   updateConversationSchema,
   type ConversationStore,
+  type PersistedReport,
 } from "./contracts.js";
-import { optimizationReportSchema, type OptimizationReport } from "@bg3-builds/domain";
+import type { OptimizationReport } from "@bg3-builds/domain";
 import type { MessageProvider, StreamSink } from "./provider.js";
 
 export interface AppDependencies {
@@ -30,6 +32,26 @@ type StreamChannel = StreamSink & {
   fail(message: string): void;
 };
 
+export function attachReports(
+  reports: OptimizationReport[],
+  messageOffset: number,
+  generated: Anthropic.MessageParam[],
+): PersistedReport[] {
+  const report = reports.at(-1);
+  if (report === undefined) return [];
+
+  const generatedAssistantIndex = generated.reduce(
+    (index, message, currentIndex) => message.role === "assistant" ? currentIndex : index,
+    -1,
+  );
+  if (generatedAssistantIndex < 0) return [];
+
+  return [{
+    assistantMessageIndex: messageOffset + generatedAssistantIndex,
+    report,
+  }];
+}
+
 function sse(reply: FastifyReply): StreamChannel {
   reply.hijack();
   reply.raw.writeHead(200, {
@@ -47,10 +69,8 @@ function sse(reply: FastifyReply): StreamChannel {
     start: (messageId) => send({ type: "message_start", messageId }),
     text: (delta) => send({ type: "text_delta", delta }),
     report: (report) => {
-      const parsed = optimizationReportSchema.safeParse(report);
-      if (!parsed.success) return;
-      reports.push(parsed.data);
-      send({ type: "report", report: parsed.data });
+      reports.push(report);
+      send({ type: "report", report });
     },
     status: (status) =>
       send({
@@ -167,7 +187,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         );
         if (!controller.signal.aborted) {
           await dependencies.store.append(id, generated);
-          if (channel.reports.length) await dependencies.store.appendReports(id, channel.reports);
+          const reports = attachReports(channel.reports, conversation.messages.length + 1, generated);
+          if (reports.length > 0) await dependencies.store.appendReports(id, reports);
           channel.end();
         }
       } catch (cause) {
