@@ -17,7 +17,12 @@ const EXTRA_ATTACK_ID = "passive-extra-attack";
 const SHARPSHOOTER_ID = "feat-sharpshooter";
 const ACTION_SURGE_ID = "action-action-surge";
 const RACE_ID = "race-human";
-const UNSUPPORTED = ["surprise", "guaranteed critical hits / Executioner", "area-of-effect and multiple targets"];
+const UNSUPPORTED = [
+  "Battle Master manoeuvre dice and superiority-die consumption",
+  "surprise",
+  "guaranteed critical hits / Executioner",
+  "area-of-effect and multiple targets",
+];
 
 function abilityModifier(score: number): number { return Math.floor((score - 10) / 2); }
 function mechanic(repository: EngineRepository, id: string): RangedMechanic {
@@ -83,12 +88,9 @@ export function optimizeBuild(repository: EngineRepository, input: OptimizationR
     let threeRounds: DamageWindow;
     let subclassResource: string;
     if (subclass.kind === "battle-manoeuvre") {
-      const boostedInput = { ...attackInput, packets: [{ ...packets[0]!, dice: [...packets[0]!.dice, subclass.damageDie] }] };
-      const boostedFour = repeatAttacks(boostedInput, subclass.usesPerShortRest);
-      const normalFour = repeatAttacks(attackInput, 8 - subclass.usesPerShortRest);
-      oneRound = boostedFour;
-      threeRounds = combineWindows(boostedFour, normalFour);
-      subclassResource = "Battle Master: Action Surge in round 1; declare one manoeuvre on each of the first 4 attacks";
+      oneRound = repeatAttacks(attackInput, extraAttack.attacksPerAction * 2);
+      threeRounds = repeatAttacks(attackInput, extraAttack.attacksPerAction * 4);
+      subclassResource = "Battle Master: Action Surge in round 1; superiority-die damage is excluded until successful-hit resource consumption is modeled";
     } else {
       const ambushInput = { ...attackInput, packets: [{ ...packets[0]!, dice: [...packets[0]!.dice, subclass.extraAttackDamage] }] };
       const ambush = calculateAttackPmf(ambushInput);

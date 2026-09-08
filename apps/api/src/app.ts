@@ -26,9 +26,7 @@ const error = (code: string, message: string) => ({
 });
 
 type StreamChannel = StreamSink & {
-  readonly reports: OptimizationReport[];
   start(messageId: string): void;
-  flushReports(): void;
   end(): void;
   fail(message: string): void;
 };
@@ -64,17 +62,10 @@ function sse(reply: FastifyReply): StreamChannel {
   const send = (event: { type: string } & Record<string, unknown>) =>
     reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
 
-  const reports: OptimizationReport[] = [];
   return {
-    reports,
     start: (messageId) => send({ type: "message_start", messageId }),
     text: (delta) => send({ type: "text_delta", delta }),
-    report: (report) => {
-      reports.push(report);
-    },
-    flushReports: () => {
-      for (const report of reports) send({ type: "report", report });
-    },
+    report: (report) => send({ type: "report", report }),
     status: (status) =>
       send({
         type: "tool_status",
@@ -177,6 +168,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const userMessage = { role: "user" as const, content: input.content };
       await dependencies.store.append(id, [userMessage]);
       const channel = sse(reply);
+      const pendingReports: OptimizationReport[] = [];
+      const providerSink: StreamSink = {
+        text: channel.text,
+        status: channel.status,
+        report: (report) => pendingReports.push(report),
+      };
       channel.start(randomUUID());
       const controller = new AbortController();
       const cancel = () => controller.abort(new Error("Client disconnected"));
@@ -185,14 +182,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       try {
         const generated = await dependencies.provider.complete(
           [...conversation.messages, userMessage],
-          channel,
+          providerSink,
           controller.signal,
         );
         if (!controller.signal.aborted) {
           await dependencies.store.append(id, generated);
-          const reports = attachReports(channel.reports, conversation.messages.length + 1, generated);
+          const reports = attachReports(pendingReports, conversation.messages.length + 1, generated);
           if (reports.length > 0) await dependencies.store.appendReports(id, reports);
-          channel.flushReports();
+          for (const { report } of reports) channel.report(report);
           channel.end();
         }
       } catch (cause) {

@@ -66,6 +66,8 @@ body-parsing clients read the same shape.
   Level 5, Act 1 scope: Fighter/Battle Master or Ranger/Gloom Stalker, four
   curated bows, and Sharpshooter enabled/disabled. It reports exact attack,
   first-round, and three-round PMFs within that finite set—not a global optimum.
+  Fighter windows include Action Surge but exclude Battle Master superiority-die
+  damage until successful-hit resource consumption is modeled exactly.
 - Surprise, Executioner/guaranteed critical state, multi-target/AoE behavior,
   Arrow of Many Targets, and full DRS/DR event graphs remain unsupported by the
   exact optimizer and are reported as limitations.

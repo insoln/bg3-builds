@@ -48,7 +48,9 @@ text and produce warnings rather than fabricated numeric behavior.
 scope: Patch 8, Level 5, Act 1, Fighter/Battle Master or Ranger/Gloom Stalker,
 four executable bows, and two Sharpshooter policies. Every candidate passes
 static validation before its exact discrete attack, first-round, and three-round
-damage PMFs are composed and ranked. The guarantee is therefore
+damage PMFs are composed and ranked. Fighter windows include Action Surge;
+Battle Master superiority-die damage is excluded because its successful-hit
+resource consumption requires a stateful evaluator. The guarantee is therefore
 `exact-within-declared-scope`, never global optimality.
 
 ## Deliberate first-release limits

@@ -150,14 +150,44 @@ describe("data layer", () => {
     expect(first.candidates.every(candidate => candidate.oneRound.nonCritMax <= candidate.oneRound.critMax)).toBe(true);
     expect(first.candidates.some(candidate => candidate.oneRound.nonCritMax < candidate.oneRound.critMax)).toBe(true);
   });
-  it("uses target mitigation, roll mode, and Titanstring Strength rider in exact PMFs", () => {
+  it("matches hand-derived combat-window oracles", () => {
+    const result = optimizeBuild(new InMemoryEngineRepository(fixtureEntities), {
+      gameVersion: "Patch 8", level: 5, availableAct: 1, topK: 16,
+    });
+    const candidate = (classId: string, sharpshooter: "enabled" | "disabled") =>
+      result.candidates.find(value => value.build.classes[0]?.classId === classId
+        && value.weaponId === "item-longbow-plus-one"
+        && value.policy.sharpshooter === sharpshooter)!;
+
+    expect(candidate("class-fighter", "disabled")).toMatchObject({
+      attack: { expected: expect.closeTo(6.6), nonCritMax: 12, critMax: 20 },
+      oneRound: { expected: expect.closeTo(26.4), nonCritMax: 48, critMax: 80 },
+      threeRounds: { expected: expect.closeTo(52.8), nonCritMax: 96, critMax: 160 },
+    });
+    expect(candidate("class-ranger", "disabled")).toMatchObject({
+      attack: { expected: expect.closeTo(6.6), nonCritMax: 12, critMax: 20 },
+      oneRound: { expected: expect.closeTo(23.4), nonCritMax: 44, critMax: 76 },
+      threeRounds: { expected: expect.closeTo(49.8), nonCritMax: 92, critMax: 156 },
+    });
+    expect(candidate("class-fighter", "enabled")).toMatchObject({
+      attack: { expected: expect.closeTo(9.475), nonCritMax: 22, critMax: 30 },
+      oneRound: { expected: expect.closeTo(37.9), nonCritMax: 88, critMax: 120 },
+      threeRounds: { expected: expect.closeTo(75.8), nonCritMax: 176, critMax: 240 },
+    });
+  });
+  it("applies target AC, roll mode, mitigation, and Titanstring independently", () => {
     const repository = new InMemoryEngineRepository(fixtureEntities);
-    const normal = optimizeBuild(repository, { gameVersion: "Patch 8", level: 5, availableAct: 1, topK: 16 });
-    const resistant = optimizeBuild(repository, { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", targetArmorClass: 15, rollMode: "advantage", target: { resistances: ["piercing"] } }, topK: 16 });
-    const normalTitan = normal.candidates.find(candidate => candidate.weaponId === "item-titanstring-bow" && candidate.policy.sharpshooter === "disabled")!;
-    const normalLongbow = normal.candidates.find(candidate => candidate.weaponId === "item-longbow-plus-one" && candidate.policy.sharpshooter === "disabled")!;
-    expect(normalTitan.attack.expected).toBeGreaterThan(normalLongbow.attack.expected);
-    expect(resistant.candidates.find(candidate => candidate.weaponId === "item-titanstring-bow")!.attack.expected).toBeLessThan(normalTitan.attack.expected);
+    const run = (combat: { targetArmorClass?: number; rollMode?: "normal" | "advantage" | "disadvantage"; target?: { resistances?: "piercing"[] } } = {}) =>
+      optimizeBuild(repository, { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", ...combat }, topK: 16 });
+    const find = (result: ReturnType<typeof run>, weaponId = "item-longbow-plus-one") =>
+      result.candidates.find(candidate => candidate.build.classes[0]?.classId === "class-fighter"
+        && candidate.weaponId === weaponId && candidate.policy.sharpshooter === "disabled")!;
+    const normal = run();
+    expect(find(run({ rollMode: "advantage" })).attack.expected).toBeGreaterThan(find(normal).attack.expected);
+    expect(find(run({ rollMode: "disadvantage" })).attack.expected).toBeLessThan(find(normal).attack.expected);
+    expect(find(run({ targetArmorClass: 20 })).attack.expected).toBeLessThan(find(normal).attack.expected);
+    expect(find(run({ target: { resistances: ["piercing"] } })).attack.expected).toBeLessThan(find(normal).attack.expected);
+    expect(find(normal, "item-titanstring-bow").attack.expected).toBeGreaterThan(find(normal).attack.expected);
   });
   it("bounds and allowlists URL manifests", () => {
     expect(
