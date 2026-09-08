@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Build, GameEntity } from "../../index.js";
-import { expectedAttackDamage, gameEntitySchema, generateCandidates, hitChance, InMemoryEngineRepository, mitigateDamage, rankBuilds, resolveStats, validateBuild } from "../../index.js";
+import { engineMetadata, expectedAttackDamage, gameEntitySchema, generateCandidates, hitChance, InMemoryEngineRepository, mitigateDamage, parseRangedMechanic, rankBuilds, resolveStats, validateBuild } from "../../index.js";
 
 const source = { source: "test", gameVersion: "1" };
 const entity = (id: string, kind: GameEntity["kind"], tags: string[] = [], engine?: Record<string, unknown>): GameEntity => ({ id, slug: id, kind, text: { name: id }, tags, source, ...(engine ? { metadata: { engine } } : {}) });
@@ -17,6 +17,11 @@ const repository = new InMemoryEngineRepository(entities);
 const baseBuild = (patch: Partial<Build> = {}): Build => ({ name: "Test", gameVersion: "1", level: 4, raceId: "human", classes: [{ classId: "fighter", level: 4 }], abilityScores: { strength: 16, dexterity: 14, constitution: 14, intelligence: 10, wisdom: 10, charisma: 10 }, choices: [], feats: [], preparedSpells: [], equipment: [], ...patch });
 
 describe("entity schema", () => {
+  it("parses strict ranged mechanics", () => {
+    expect(parseRangedMechanic({ kind: "weapon", sourceEntityId: "bow", weaponType: "longbow", baseDamage: { count: 1, sides: 8, flat: 1 }, damageType: "piercing", attackAbility: "dexterity", strengthDamage: { ability: "strength", minimumModifier: 1 } })).toMatchObject({ kind: "weapon", baseDamage: { count: 1, sides: 8, flat: 1 } });
+    expect(parseRangedMechanic({ kind: "sharpshooter", sourceEntityId: "feat", attackRollPenalty: -4, damageBonus: 10 })).toBeUndefined();
+    expect(engineMetadata(entity("bow", "item", [], { ranged: { kind: "weapon", sourceEntityId: "bow", weaponType: "longbow", baseDamage: { count: 1, sides: 8 }, damageType: "piercing", attackAbility: "dexterity", unexpected: true } })).ranged).toBeUndefined();
+  });
   it("validates optional icon URLs", () => {
     expect(gameEntitySchema.safeParse({ ...entities[0], iconUrl: "https://bg3.wiki/icon.png" }).success).toBe(true);
     for (const iconUrl of [
@@ -33,12 +38,17 @@ describe("entity schema", () => {
 });
 
 describe("validation", () => {
-  it("checks level sums and act availability", () => {
+  it("checks level sums and act availability for every build reference", () => {
     const invalidLevels = validateBuild(baseBuild({ classes: [{ classId: "fighter", level: 3 }] }), repository);
     expect(invalidLevels.valid).toBe(false);
     expect(invalidLevels.issues.map((issue) => issue.code)).toContain("schema");
     const unavailable = validateBuild(baseBuild({ equipment: [{ slot: "ring-1", itemId: "late-ring" }] }), repository, { availableAct: 2 });
     expect(unavailable.issues.map((issue) => issue.code)).toContain("act-unavailable");
+    const lateRace = entity("late-race", "race", [], { availableAct: 3 });
+    const lateFeat = entity("late-feat", "feat", [], { availableAct: 3 });
+    const actRepository = new InMemoryEngineRepository([...entities, lateRace, lateFeat]);
+    const actFiltered = validateBuild(baseBuild({ raceId: "late-race", feats: ["late-feat"] }), actRepository, { availableAct: 2 });
+    expect(actFiltered.issues.filter((entry) => entry.code === "act-unavailable").map((entry) => entry.entityId)).toEqual(["late-race", "late-feat"]);
   });
   it("checks slots and two-hand/shield conflicts while allowing prepared concentration spells", () => {
     const result = validateBuild(baseBuild({ equipment: [{ slot: "melee-main-hand", itemId: "greatsword" }, { slot: "melee-off-hand", itemId: "shield" }], preparedSpells: [{ spellId: "focus-a", alwaysPrepared: false }, { spellId: "focus-b", alwaysPrepared: false }] }), repository);

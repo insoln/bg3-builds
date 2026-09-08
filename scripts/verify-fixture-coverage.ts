@@ -23,10 +23,10 @@ if (classCount !== 12) {
     message: `Expected 12 base classes, found ${classCount}`,
   });
 }
-if (itemCount < 30 || itemCount > 45) {
+if (itemCount < 30 || itemCount > 50) {
   issues.push({
     code: "item-coverage",
-    message: `Expected 30-45 representative items, found ${itemCount}`,
+    message: `Expected 30-50 representative items, found ${itemCount}`,
   });
 }
 

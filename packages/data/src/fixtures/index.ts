@@ -33,10 +33,10 @@ const classes: readonly FixtureDefinition[] = [
   { id: "class-bard", slug: "bard", kind: "class", name: "Bard", wikiTitle: "Bard", tags: ["caster", "support", "controller", "control", "support", "act-1"], engine: { hitDie: 8, spellcastingAbility: "charisma" } },
   { id: "class-cleric", slug: "cleric", kind: "class", name: "Cleric", wikiTitle: "Cleric", tags: ["caster", "support", "frontliner", "tank", "support", "act-1"], engine: { hitDie: 8, spellcastingAbility: "wisdom" } },
   { id: "class-druid", slug: "druid", kind: "class", name: "Druid", wikiTitle: "Druid", tags: ["caster", "support", "controller", "control", "support", "act-1"], engine: { hitDie: 8, spellcastingAbility: "wisdom" } },
-  { id: "class-fighter", slug: "fighter", kind: "class", name: "Fighter", wikiTitle: "Fighter", tags: ["martial", "frontliner", "striker", "tank", "melee", "ranged", "damage", "act-1"], engine: { hitDie: 10, attackAbility: "strength" } },
+  { id: "class-fighter", slug: "fighter", kind: "class", name: "Fighter", wikiTitle: "Fighter", tags: ["martial", "frontliner", "striker", "tank", "melee", "ranged", "damage", "act-1"], engine: { availableAct: 1, hitDie: 10, attackAbility: "strength", ranged: { kind: "extra-attack", sourceEntityId: "class-fighter", minimumClassLevel: 5, attacksPerAction: 2 } } },
   { id: "class-monk", slug: "monk", kind: "class", name: "Monk", wikiTitle: "Monk", tags: ["martial", "striker", "melee", "damage", "control", "act-1"], engine: { hitDie: 8, attackAbility: "dexterity" } },
   { id: "class-paladin", slug: "paladin", kind: "class", name: "Paladin", wikiTitle: "Paladin", tags: ["martial", "frontliner", "support", "tank", "melee", "damage", "act-1"], engine: { hitDie: 10, attackAbility: "strength", spellcastingAbility: "charisma" } },
-  { id: "class-ranger", slug: "ranger", kind: "class", name: "Ranger", wikiTitle: "Ranger", tags: ["martial", "striker", "ranged", "damage", "control", "act-1"], engine: { hitDie: 10, attackAbility: "dexterity", spellcastingAbility: "wisdom" } },
+  { id: "class-ranger", slug: "ranger", kind: "class", name: "Ranger", wikiTitle: "Ranger", tags: ["martial", "striker", "ranged", "damage", "control", "act-1"], engine: { availableAct: 1, hitDie: 10, attackAbility: "dexterity", spellcastingAbility: "wisdom", ranged: { kind: "extra-attack", sourceEntityId: "class-ranger", minimumClassLevel: 5, attacksPerAction: 2 } } },
   { id: "class-rogue", slug: "rogue", kind: "class", name: "Rogue", wikiTitle: "Rogue", tags: ["martial", "striker", "ranged", "melee", "damage", "utility", "act-1"], engine: { hitDie: 8, attackAbility: "dexterity" } },
   { id: "class-sorcerer", slug: "sorcerer", kind: "class", name: "Sorcerer", wikiTitle: "Sorcerer", tags: ["caster", "striker", "controller", "damage", "control", "act-1"], engine: { hitDie: 6, spellcastingAbility: "charisma" } },
   { id: "class-warlock", slug: "warlock", kind: "class", name: "Warlock", wikiTitle: "Warlock", tags: ["caster", "striker", "controller", "ranged", "damage", "control", "act-1"], engine: { hitDie: 8, spellcastingAbility: "charisma" } },
@@ -80,7 +80,7 @@ const feats: readonly FixtureDefinition[] = [
   { id: "feat-heavy-armour-master", slug: "heavy-armour-master", kind: "feat", name: "Heavy Armour Master", wikiTitle: "Heavy Armour Master", tags: ["tank", "defence", "act-1"] },
   { id: "feat-resilient", slug: "resilient", kind: "feat", name: "Resilient", wikiTitle: "Resilient", tags: ["defence", "concentration", "act-1"] },
   { id: "feat-sentinel", slug: "sentinel", kind: "feat", name: "Sentinel", wikiTitle: "Sentinel", tags: ["melee", "control", "tank", "act-1"] },
-  { id: "feat-sharpshooter", slug: "sharpshooter", kind: "feat", name: "Sharpshooter", wikiTitle: "Sharpshooter", tags: ["ranged", "damage", "act-1"] },
+  { id: "feat-sharpshooter", slug: "sharpshooter", kind: "feat", name: "Sharpshooter", wikiTitle: "Sharpshooter", tags: ["ranged", "damage", "act-1"], engine: { ranged: { kind: "sharpshooter", sourceEntityId: "feat-sharpshooter", attackRollPenalty: -5, damageBonus: 10 } } },
   { id: "feat-tavern-brawler", slug: "tavern-brawler", kind: "feat", name: "Tavern Brawler", wikiTitle: "Tavern Brawler", tags: ["melee", "throwing", "damage", "act-1"] },
   { id: "feat-war-caster", slug: "war-caster", kind: "feat", name: "War Caster", wikiTitle: "War Caster", tags: ["caster", "concentration", "act-1"] },
 ];
@@ -98,13 +98,18 @@ const spellsAndActions: readonly FixtureDefinition[] = [
   { id: "spell-spirit-guardians", slug: "spirit-guardians", kind: "spell", name: "Spirit Guardians", wikiTitle: "Spirit Guardians", tags: ["damage", "control", "concentration", "act-1"], engine: { concentration: true } },
   { id: "spell-spike-growth", slug: "spike-growth", kind: "spell", name: "Spike Growth", wikiTitle: "Spike Growth", tags: ["control", "damage", "concentration", "act-1"], engine: { concentration: true } },
   { id: "action-action-surge", slug: "action-surge", kind: "action", name: "Action Surge", wikiTitle: "Action Surge", tags: ["damage", "nova", "act-1"] },
+  { id: "passive-archery", slug: "archery", kind: "passive", name: "Archery", wikiTitle: "Archery", tags: ["ranged", "damage", "act-1"], engine: { availableAct: 1, ranged: { kind: "attack-bonus", sourceEntityId: "passive-archery", appliesTo: "ranged-weapon", bonus: 2 } } },
+  { id: "passive-extra-attack", slug: "extra-attack", kind: "passive", name: "Extra Attack", wikiTitle: "Extra_Attack", tags: ["ranged", "melee", "damage", "act-1"], engine: { availableAct: 1, ranged: { kind: "extra-attack", sourceEntityId: "passive-extra-attack", minimumClassLevel: 5, attacksPerAction: 2 } } },
   { id: "action-flurry-of-blows", slug: "flurry-of-blows", kind: "action", name: "Flurry of Blows", wikiTitle: "Flurry of Blows", tags: ["melee", "damage", "act-1"] },
   { id: "action-sneak-attack", slug: "sneak-attack", kind: "action", name: "Sneak Attack", wikiTitle: "Sneak Attack", tags: ["ranged", "melee", "damage", "act-1"] },
   { id: "passive-eldritch-invocation", slug: "eldritch-invocation", kind: "passive", name: "Eldritch Invocation", wikiTitle: "Eldritch Invocation", tags: ["caster", "ranged", "utility", "act-1"] },
 ];
 
 const items: readonly FixtureDefinition[] = [
-  { id: "item-titanstring-bow", slug: "titanstring-bow", kind: "item", name: "Titanstring Bow", wikiTitle: "Titanstring Bow", tags: ["ranged", "damage", "act-1"] },
+  { id: "item-titanstring-bow", slug: "titanstring-bow", kind: "item", name: "Titanstring Bow", wikiTitle: "Titanstring Bow", tags: ["ranged", "damage", "act-1"], engine: { availableAct: 1, slot: "ranged-main-hand", handedness: "two-handed", ranged: { kind: "weapon", sourceEntityId: "item-titanstring-bow", weaponType: "longbow", baseDamage: { count: 1, sides: 8, flat: 1 }, damageType: "piercing", attackAbility: "dexterity", strengthDamage: { ability: "strength", minimumModifier: 1 } } } },
+  { id: "item-longbow-plus-one", slug: "longbow-plus-one", kind: "item", name: "Longbow +1", wikiTitle: "Longbow_%2B1", tags: ["ranged", "damage", "act-1"], engine: { availableAct: 1, slot: "ranged-main-hand", handedness: "two-handed", ranged: { kind: "weapon", sourceEntityId: "item-longbow-plus-one", weaponType: "longbow", baseDamage: { count: 1, sides: 8, flat: 1 }, damageType: "piercing", attackAbility: "dexterity" } } },
+  { id: "item-hunting-shortbow", slug: "hunting-shortbow", kind: "item", name: "Hunting Shortbow", wikiTitle: "Hunting_Shortbow", tags: ["ranged", "damage", "act-1"], engine: { availableAct: 1, slot: "ranged-main-hand", handedness: "two-handed", ranged: { kind: "weapon", sourceEntityId: "item-hunting-shortbow", weaponType: "shortbow", baseDamage: { count: 1, sides: 6, flat: 1 }, damageType: "piercing", attackAbility: "dexterity" } } },
+  { id: "item-joltshooter", slug: "joltshooter", kind: "item", name: "The Joltshooter", wikiTitle: "The_Joltshooter", tags: ["ranged", "lightning", "act-1"], engine: { availableAct: 1, slot: "ranged-main-hand", handedness: "two-handed", ranged: { kind: "weapon", sourceEntityId: "item-joltshooter", weaponType: "longbow", baseDamage: { count: 1, sides: 8 }, damageType: "piercing", attackAbility: "dexterity" } } },
   { id: "item-club-of-hill-giant-strength", slug: "club-of-hill-giant-strength", kind: "item", name: "Club of Hill Giant Strength", wikiTitle: "Club of Hill Giant Strength", tags: ["melee", "utility", "act-1"] },
   { id: "item-adamantine-splint-armour", slug: "adamantine-splint-armour", kind: "item", name: "Adamantine Splint Armour", wikiTitle: "Adamantine Splint Armour", tags: ["tank", "heavy-armour", "act-1"] },
   { id: "item-adamantine-shield", slug: "adamantine-shield", kind: "item", name: "Adamantine Shield", wikiTitle: "Adamantine Shield", tags: ["tank", "shield", "act-1"] },
@@ -122,8 +127,8 @@ const items: readonly FixtureDefinition[] = [
 
   { id: "item-risky-ring", slug: "risky-ring", kind: "item", name: "Risky Ring", wikiTitle: "Risky Ring", tags: ["ranged", "melee", "damage", "act-2"] },
   { id: "item-cloak-of-protection", slug: "cloak-of-protection", kind: "item", name: "Cloak of Protection", wikiTitle: "Cloak of Protection", tags: ["tank", "defence", "act-2"] },
-  { id: "item-hellfire-hand-crossbow", slug: "hellfire-hand-crossbow", kind: "item", name: "Hellfire Hand Crossbow", wikiTitle: "Hellfire Hand Crossbow", tags: ["ranged", "damage", "act-2"] },
-  { id: "item-neer-misser", slug: "neer-misser", kind: "item", name: "Ne'er Misser", wikiTitle: "Ne'er Misser", tags: ["ranged", "damage", "act-2"] },
+  { id: "item-hellfire-hand-crossbow", slug: "hellfire-hand-crossbow", kind: "item", name: "Hellfire Hand Crossbow", wikiTitle: "Hellfire Hand Crossbow", tags: ["ranged", "damage", "act-2"], engine: { availableAct: 2, slot: "ranged-main-hand", handedness: "one-handed", ranged: { kind: "weapon", sourceEntityId: "item-hellfire-hand-crossbow", weaponType: "hand-crossbow", baseDamage: { count: 1, sides: 6, flat: 2 }, damageType: "piercing", attackAbility: "dexterity" } } },
+  { id: "item-neer-misser", slug: "neer-misser", kind: "item", name: "Ne'er Misser", wikiTitle: "Ne'er Misser", tags: ["ranged", "damage", "act-2"], engine: { availableAct: 2, slot: "ranged-main-hand", handedness: "one-handed", ranged: { kind: "weapon", sourceEntityId: "item-neer-misser", weaponType: "hand-crossbow", baseDamage: { count: 1, sides: 6, flat: 1 }, damageType: "force", attackAbility: "dexterity" } } },
   { id: "item-helmet-of-arcane-acuity", slug: "helmet-of-arcane-acuity", kind: "item", name: "Helmet of Arcane Acuity", wikiTitle: "Helmet of Arcane Acuity", tags: ["caster", "control", "damage", "act-2"] },
   { id: "item-luminous-armour", slug: "luminous-armour", kind: "item", name: "Luminous Armour", wikiTitle: "Luminous Armour", tags: ["tank", "support", "control", "act-2"] },
   { id: "item-callous-glow-ring", slug: "callous-glow-ring", kind: "item", name: "Callous Glow Ring", wikiTitle: "Callous Glow Ring", tags: ["damage", "damage-rider", "act-2"] },
@@ -205,15 +210,26 @@ export const fixtureSources: SourceRecord[] = [
   },
 ];
 
-export const fixtureClaims: Claim[] = fixtureEntities.map((entity) => ({
-  id: `${entity.id}:tags`,
-  entityId: entity.id,
-  sourceId: "bg3-wiki-patch-8",
-  field: "tags",
-  value: entity.tags,
-  evidence: `Classification curated for ${entity.text.name}.`,
-  locator: entity.source.url,
-}));
+export const fixtureClaims: Claim[] = fixtureEntities.flatMap((entity) => [
+  {
+    id: `${entity.id}:tags`,
+    entityId: entity.id,
+    sourceId: "bg3-wiki-patch-8",
+    field: "tags",
+    value: entity.tags,
+    evidence: `Classification curated for ${entity.text.name}.`,
+    locator: entity.source.url,
+  },
+  ...(entity.metadata?.["engine"] ? [{
+    id: `${entity.id}:engine`,
+    entityId: entity.id,
+    sourceId: "bg3-wiki-patch-8",
+    field: "metadata.engine",
+    value: entity.metadata["engine"],
+    evidence: `Mechanic metadata transcribed from the ${entity.text.name} source page for Patch 8 baseline evaluation.`,
+    locator: entity.source.url,
+  }] : []),
+]);
 
 export const fixtureCoverage = {
   acts: ["act-1", "act-2", "act-3"],

@@ -32,7 +32,7 @@ describe("data layer", () => {
     });
     expect(entities.get("item-titanstring-bow")?.iconUrl).toContain("Longbow_PlusOne_Icon.png");
     expect(entities.list().find((entity) => entity.id === "item-titanstring-bow")?.iconUrl).toContain("Longbow_PlusOne_Icon.png");
-    expect(claims.forEntity("item-titanstring-bow")).toHaveLength(1);
+    expect(claims.forEntity("item-titanstring-bow")).toHaveLength(2);
     db.close();
   });
   it("stores ordered conversations", () => {
@@ -66,7 +66,11 @@ describe("data layer", () => {
     expect(fixtureEntities.find((entity) => entity.id === "subclass-school-of-divination")?.source.url)
       .toBe("https://bg3.wiki/wiki/Divination_School");
     expect(titanstring?.iconUrl).toContain("Longbow_PlusOne_Icon.png");
-    expect(fixtureClaims.find((claim) => claim.entityId === titanstring?.id)?.locator).toBe(titanstring?.source.url);
+    expect(fixtureClaims.find((claim) => claim.id === "item-titanstring-bow:engine")).toMatchObject({
+      field: "metadata.engine",
+      locator: titanstring?.source.url,
+      value: expect.objectContaining({ ranged: expect.objectContaining({ sourceEntityId: "item-titanstring-bow" }) }),
+    });
     expect(validateProvenance([
       { ...fixtureEntities[0]!, source: { ...fixtureEntities[0]!.source, url: "https://example.test/wiki/Barbarian" } },
     ], fixtureSources, [])).toEqual(expect.arrayContaining([expect.objectContaining({ code: "unregistered-source" })]));

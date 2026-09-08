@@ -7,7 +7,16 @@ export type ExplainTrace = {
   output?: number | string | boolean;
 };
 
+export type RangedDamageDice = { count: number; sides: number } & ({ flat: number } | { flat?: never });
+
+export type RangedMechanic =
+  | { kind: "weapon"; sourceEntityId: string; weaponType: "longbow" | "shortbow" | "hand-crossbow"; baseDamage: RangedDamageDice; damageType: "piercing" | "force"; attackAbility: "dexterity"; strengthDamage?: { ability: "strength"; minimumModifier: 1 } | undefined }
+  | { kind: "attack-bonus"; sourceEntityId: string; appliesTo: "ranged-weapon"; bonus: number }
+  | { kind: "extra-attack"; sourceEntityId: string; minimumClassLevel: number; attacksPerAction: 2 }
+  | { kind: "sharpshooter"; sourceEntityId: string; attackRollPenalty: -5; damageBonus: 10 };
+
 export type EngineMetadata = {
+  /** The earliest act in which the entity can be obtained or selected. */
   availableAct?: 1 | 2 | 3;
   slot?: EquipmentSlot;
   handedness?: "one-handed" | "two-handed";
@@ -23,6 +32,7 @@ export type EngineMetadata = {
   spellcastingAbility?: Ability;
   hitDie?: number;
   effects?: Array<{ target: string; value: ValueExpression }>;
+  ranged?: RangedMechanic;
 };
 
 export type ValidationOptions = { availableAct?: 1 | 2 | 3 };
