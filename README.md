@@ -4,9 +4,10 @@ A local-first web chat that turns a natural-language Baldur's Gate 3 request
 ("act 1, level 5, best ranged build") into a concrete, mechanically checked
 character configuration.
 
-Claude interprets the request and explains the result. Legality, availability,
-and every number are produced by deterministic TypeScript — never by model
-arithmetic.
+Claude interprets the request and explains the result. Within each explicitly
+declared evaluator scope, legality, availability, and reported numbers are
+produced by deterministic TypeScript — never by model arithmetic. Unsupported
+mechanics remain labeled limitations rather than silently estimated.
 
 ## Workspace
 
@@ -61,10 +62,13 @@ body-parsing clients read the same shape.
   but is not wired into the running API yet.
 - `better-sqlite3` needs a native build (`pnpm rebuild better-sqlite3`); until
   it is compiled the two SQLite-backed data tests fail to load their binding.
-- The fixture dataset is curated and deliberately small, so builds are drawn
-  from a subset of the game rather than the full corpus.
-- DRS/DR chains are estimated from independently normalized damage components
-  only, and any such result is reported as a basic estimate with a warning.
+- The exact ranged optimizer exhaustively ranks only its declared Patch 8,
+  Level 5, Act 1 scope: Fighter/Battle Master or Ranger/Gloom Stalker, four
+  curated bows, and Sharpshooter enabled/disabled. It reports exact attack,
+  first-round, and three-round PMFs within that finite set—not a global optimum.
+- Surprise, Executioner/guaranteed critical state, multi-target/AoE behavior,
+  Arrow of Many Targets, and full DRS/DR event graphs remain unsupported by the
+  exact optimizer and are reported as limitations.
 
 See `docs/architecture.md`, `docs/data-sources.md`, and
 `docs/fixture-coverage.md` for boundaries, provenance rules, and coverage.

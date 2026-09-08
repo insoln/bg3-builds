@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { InMemoryEngineRepository, validateBuild, type Build } from "@bg3-builds/domain";
+import {
+  InMemoryEngineRepository,
+  optimizeBuild,
+  optimizerResultSchema,
+  validateBuild,
+  type Build,
+} from "@bg3-builds/domain";
 import {
   ClaimRepository,
   ConversationRepository,
@@ -14,7 +20,6 @@ import {
   validateProvenance,
   validateUrlManifest,
 } from "../src/index.js";
-import { InMemoryEngineRepository, optimizeBuild, optimizerResultSchema } from "@bg3-builds/domain";
 describe("data layer", () => {
   it("upserts fixtures idempotently and searches FTS", () => {
     const db = openDatabase();
@@ -136,6 +141,8 @@ describe("data layer", () => {
     expect(first.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-ranger").every(candidate => candidate.build.choices[0]?.level === 2)).toBe(true);
     expect(first.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-fighter").every(candidate => candidate.provenance.some(ref => ref.entityId === "action-action-surge"))).toBe(true);
     expect(first.candidates[0]!.oneRound.expected).toBeGreaterThanOrEqual(first.candidates[1]!.oneRound.expected);
+    expect(first.candidates.every(candidate => candidate.oneRound.nonCritMax <= candidate.oneRound.critMax)).toBe(true);
+    expect(first.candidates.some(candidate => candidate.oneRound.nonCritMax < candidate.oneRound.critMax)).toBe(true);
   });
   it("uses target mitigation, roll mode, and Titanstring Strength rider in exact PMFs", () => {
     const repository = new InMemoryEngineRepository(fixtureEntities);

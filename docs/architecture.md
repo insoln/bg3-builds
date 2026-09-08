@@ -10,9 +10,9 @@ React chat -> POST SSE -> Fastify -> Claude Messages streaming loop
 ```
 
 Claude translates intent and explains tool output. It is not authoritative for
-build legality or arithmetic. The provider persists full Anthropic content
-blocks (including tool-use and tool-result turns), while the public conversation
-projection exposes only user/assistant text.
+build legality or arithmetic. The provider persists full Anthropic content blocks (including tool-use and
+tool-result turns). The public projection exposes user/assistant text plus any
+canonical optimization report attached to its originating assistant turn.
 
 ## Package boundaries
 
@@ -42,9 +42,19 @@ Normalized facts retain source URL, game version/revision, retrieval date,
 license notice, evidence, and locator. Unsupported mechanics remain searchable
 text and produce warnings rather than fabricated numeric behavior.
 
+## Exact ranged optimizer slice
+
+`optimize_build` exhaustively enumerates 16 candidates in a versioned finite
+scope: Patch 8, Level 5, Act 1, Fighter/Battle Master or Ranger/Gloom Stalker,
+four executable bows, and two Sharpshooter policies. Every candidate passes
+static validation before its exact discrete attack, first-round, and three-round
+damage PMFs are composed and ranked. The guarantee is therefore
+`exact-within-declared-scope`, never global optimality.
+
 ## Deliberate first-release limits
 
-The generator is a bounded deterministic template search over the fixture set,
-not a proof of the global optimum. Exact patch/difficulty-specific DRS event
-graphs, full combat simulation, complete game corpus, party-wide unique-item
-allocation, auth, and deployment are outside this vertical slice.
+Surprise, Executioner and other stateful guaranteed-critical effects,
+multi-target/AoE geometry, Arrow of Many Targets, exact DRS/DR event graphs,
+complete game corpus, and party-wide unique-item allocation remain outside this
+vertical slice. Unsupported mechanics are returned explicitly instead of being
+folded into an approximate score.

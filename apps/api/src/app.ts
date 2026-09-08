@@ -28,6 +28,7 @@ const error = (code: string, message: string) => ({
 type StreamChannel = StreamSink & {
   readonly reports: OptimizationReport[];
   start(messageId: string): void;
+  flushReports(): void;
   end(): void;
   fail(message: string): void;
 };
@@ -70,7 +71,9 @@ function sse(reply: FastifyReply): StreamChannel {
     text: (delta) => send({ type: "text_delta", delta }),
     report: (report) => {
       reports.push(report);
-      send({ type: "report", report });
+    },
+    flushReports: () => {
+      for (const report of reports) send({ type: "report", report });
     },
     status: (status) =>
       send({
@@ -189,6 +192,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
           await dependencies.store.append(id, generated);
           const reports = attachReports(channel.reports, conversation.messages.length + 1, generated);
           if (reports.length > 0) await dependencies.store.appendReports(id, reports);
+          channel.flushReports();
           channel.end();
         }
       } catch (cause) {

@@ -36,6 +36,9 @@ function buildFor(classOption: typeof CLASS_OPTIONS[number], weaponId: string): 
   };
 }
 function combine(...pmfs: IntegerPmf[]): IntegerPmf { return pmfs.reduce((left, right) => convolvePmfs(left, right), new Map([[0, 1]])); }
+function summarizeWindow(pmf: IntegerPmf, nonCritMax: number, critMax: number) {
+  return { ...summarizePmf(pmf), nonCritMax, critMax };
+}
 function rejectionCounts(reasons: string[]): Record<string, number> {
   return Object.fromEntries([...new Set(reasons)].sort().map(reason => [reason, reasons.filter(value => value === reason).length]));
 }
@@ -70,16 +73,26 @@ export function optimizeBuild(repository: EngineRepository, input: OptimizationR
     const normalTwo = repeatAttacks(attackInput, extraAttack.attacksPerAction);
     let oneRoundPmf: IntegerPmf;
     let threeRoundsPmf: IntegerPmf;
+    let oneRoundMaxima: [number, number];
+    let threeRoundsMaxima: [number, number];
     let subclassResource: string;
     if (subclass.kind === "battle-manoeuvre") {
       const boostedInput = { ...attackInput, packets: [{ ...packets[0]!, dice: [...packets[0]!.dice, subclass.damageDie] }] };
-      oneRoundPmf = repeatAttacks(boostedInput, 4).pmf;
-      threeRoundsPmf = combine(repeatAttacks(boostedInput, subclass.usesPerShortRest).pmf, repeatAttacks(attackInput, 8 - subclass.usesPerShortRest).pmf);
+      const boostedFour = repeatAttacks(boostedInput, subclass.usesPerShortRest);
+      const normalFour = repeatAttacks(attackInput, 8 - subclass.usesPerShortRest);
+      oneRoundPmf = boostedFour.pmf;
+      threeRoundsPmf = combine(boostedFour.pmf, normalFour.pmf);
+      oneRoundMaxima = [boostedFour.summary.nonCritMax, boostedFour.summary.critMax];
+      threeRoundsMaxima = [boostedFour.summary.nonCritMax + normalFour.summary.nonCritMax, boostedFour.summary.critMax + normalFour.summary.critMax];
       subclassResource = "Battle Master: Action Surge in round 1; declare one manoeuvre on each of the first 4 attacks";
     } else {
       const ambushInput = { ...attackInput, packets: [{ ...packets[0]!, dice: [...packets[0]!.dice, subclass.extraAttackDamage] }] };
-      oneRoundPmf = combine(normalTwo.pmf, calculateAttackPmf(ambushInput).pmf);
-      threeRoundsPmf = combine(repeatAttacks(attackInput, 6).pmf, calculateAttackPmf(ambushInput).pmf);
+      const ambush = calculateAttackPmf(ambushInput);
+      const normalSix = repeatAttacks(attackInput, 6);
+      oneRoundPmf = combine(normalTwo.pmf, ambush.pmf);
+      threeRoundsPmf = combine(normalSix.pmf, ambush.pmf);
+      oneRoundMaxima = [normalTwo.summary.nonCritMax + ambush.summary.nonCritMax, normalTwo.summary.critMax + ambush.summary.critMax];
+      threeRoundsMaxima = [normalSix.summary.nonCritMax + ambush.summary.nonCritMax, normalSix.summary.critMax + ambush.summary.critMax];
       subclassResource = "Gloom Stalker: Dread Ambusher once in round 1";
     }
     const refs = [candidate.classOption.classId, candidate.classOption.subclassId, candidate.weaponId, ARCHERY_ID, EXTRA_ATTACK_ID, SHARPSHOOTER_ID, ...(candidate.classOption.classId === "class-fighter" ? [ACTION_SURGE_ID] : [])].map(entityId => {
@@ -87,7 +100,14 @@ export function optimizeBuild(repository: EngineRepository, input: OptimizationR
       if (!entity.source.url) throw new Error(`Required provenance URL is missing: ${entityId}`);
       return { entityId, label: entity.text.name, url: entity.source.url, mechanic: entityId === candidate.weaponId ? "weapon" : entityId === ARCHERY_ID ? "Archery" : entityId === EXTRA_ATTACK_ID ? "Extra Attack" : entityId === SHARPSHOOTER_ID ? "Sharpshooter policy" : "class eligibility" };
     });
-    return [{ ...candidate, attack: attack.summary, oneRound: summarizePmf(oneRoundPmf), threeRounds: summarizePmf(threeRoundsPmf), subclassResource, refs }];
+    return [{
+      ...candidate,
+      attack: attack.summary,
+      oneRound: summarizeWindow(oneRoundPmf, ...oneRoundMaxima),
+      threeRounds: summarizeWindow(threeRoundsPmf, ...threeRoundsMaxima),
+      subclassResource,
+      refs,
+    }];
   });
 
   valid.sort((left, right) => right.oneRound.expected - left.oneRound.expected || right.threeRounds.expected - left.threeRounds.expected || left.build.id!.localeCompare(right.build.id!) || Number(left.sharpshooterEnabled) - Number(right.sharpshooterEnabled));
