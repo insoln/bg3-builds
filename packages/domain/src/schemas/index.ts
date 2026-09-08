@@ -1,3 +1,4 @@
+export * from "./attack.js";
 export * from "./build.js";
 export * from "./effects.js";
 export * from "./entities.js";
