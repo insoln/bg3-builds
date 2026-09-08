@@ -66,14 +66,18 @@ export function convolvePmfs(left: IntegerPmf, right: IntegerPmf): IntegerPmf {
   return convolvePmfsUnchecked(left, right);
 }
 
-function repeatPmfUnchecked(pmf: IntegerPmf, count: number): IntegerPmf {
+function repeatPmfWith(
+  pmf: IntegerPmf,
+  count: number,
+  convolve: (left: IntegerPmf, right: IntegerPmf) => IntegerPmf,
+): IntegerPmf {
   let result: IntegerPmf = one;
   let factor = pmf;
   let remaining = count;
   while (remaining > 0) {
-    if (remaining % 2 === 1) result = convolvePmfsUnchecked(result, factor);
+    if (remaining % 2 === 1) result = convolve(result, factor);
     remaining = Math.floor(remaining / 2);
-    if (remaining > 0) factor = convolvePmfsUnchecked(factor, factor);
+    if (remaining > 0) factor = convolve(factor, factor);
   }
   return result;
 }
@@ -83,29 +87,21 @@ export function repeatPmf(pmf: IntegerPmf, count: number): IntegerPmf {
   const { minimum, maximum } = validatePmf(pmf, "PMF");
   if ((maximum - minimum) * count > MAX_REPEATED_DAMAGE_SUPPORT) throw new RangeError("repeated PMF support is too wide");
   if (!Number.isSafeInteger(minimum * count) || !Number.isSafeInteger(maximum * count)) throw new RangeError("repeated PMF outcomes exceed safe integer arithmetic");
-  let result: IntegerPmf = one;
-  let factor = pmf;
-  let remaining = count;
   let remainingPairs = MAX_PUBLIC_CONVOLUTION_PAIRS;
-  const convolveWithinBudget = (left: IntegerPmf, right: IntegerPmf): IntegerPmf => {
+  function convolveWithinBudget(left: IntegerPmf, right: IntegerPmf): IntegerPmf {
     const pairs = left.size * right.size;
     if (pairs > remainingPairs) throw new RangeError("repeated PMF has too many convolution pairs");
     remainingPairs -= pairs;
     return convolvePmfs(left, right);
-  };
-  while (remaining > 0) {
-    if (remaining % 2 === 1) result = convolveWithinBudget(result, factor);
-    remaining = Math.floor(remaining / 2);
-    if (remaining > 0) factor = convolveWithinBudget(factor, factor);
   }
-  return result;
+  return repeatPmfWith(pmf, count, convolveWithinBudget);
 }
 
 function dicePmfUnchecked(dice: DiceExpression): IntegerPmf {
   if (dice.count === 0) return one;
   const die = new Map<number, number>();
   for (let face = 1; face <= dice.sides; face += 1) die.set(face, 1 / dice.sides);
-  return repeatPmfUnchecked(die, dice.count);
+  return repeatPmfWith(die, dice.count, convolvePmfsUnchecked);
 }
 
 export function dicePmf(dice: DiceExpression): IntegerPmf {

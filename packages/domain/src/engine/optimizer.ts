@@ -1,6 +1,6 @@
 import type { Build, DamagePacket } from "../schemas/index.js";
 import { optimizationRequestSchema, type OptimizationRequest, type OptimizerResult } from "../schemas/optimization.js";
-import { calculateAttackPmf, convolvePmfs, repeatAttacks, summarizePmf, type IntegerPmf } from "./attack-pmf.js";
+import { calculateAttackPmf, convolvePmfs, repeatAttacks, summarizePmf, type AttackPmfResult, type IntegerPmf } from "./attack-pmf.js";
 import { engineMetadata } from "./metadata.js";
 import type { EngineRepository } from "./repository.js";
 import type { RangedMechanic } from "./types.js";
@@ -35,9 +35,17 @@ function buildFor(classOption: typeof CLASS_OPTIONS[number], weaponId: string): 
     equipment: [{ slot: "ranged-main-hand", itemId: weaponId }],
   };
 }
-function combine(...pmfs: IntegerPmf[]): IntegerPmf { return pmfs.reduce((left, right) => convolvePmfs(left, right), new Map([[0, 1]])); }
-function summarizeWindow(pmf: IntegerPmf, nonCritMax: number, critMax: number) {
-  return { ...summarizePmf(pmf), nonCritMax, critMax };
+type DamageWindow = Pick<AttackPmfResult, "pmf" | "summary">;
+
+function combineWindows(...windows: DamageWindow[]): DamageWindow {
+  const pmf = windows.reduce<IntegerPmf>(
+    (combined, window) => convolvePmfs(combined, window.pmf),
+    new Map([[0, 1]]),
+  );
+  const summary = summarizePmf(pmf);
+  summary.nonCritMax = windows.reduce((total, window) => total + window.summary.nonCritMax, 0);
+  summary.critMax = windows.reduce((total, window) => total + window.summary.critMax, 0);
+  return { pmf, summary };
 }
 function rejectionCounts(reasons: string[]): Record<string, number> {
   return Object.fromEntries([...new Set(reasons)].sort().map(reason => [reason, reasons.filter(value => value === reason).length]));
@@ -71,28 +79,22 @@ export function optimizeBuild(repository: EngineRepository, input: OptimizationR
     const attackInput = { attackBonus: 3 + dexterity + weapon.attackBonus + archery.bonus + (candidate.sharpshooterEnabled ? sharpshooter.attackRollPenalty : 0), armorClass: request.combat.targetArmorClass, rollMode: request.combat.rollMode, criticalThreshold: 20, guaranteedCritical: false, packets, target: request.combat.target } as const;
     const attack = calculateAttackPmf(attackInput);
     const normalTwo = repeatAttacks(attackInput, extraAttack.attacksPerAction);
-    let oneRoundPmf: IntegerPmf;
-    let threeRoundsPmf: IntegerPmf;
-    let oneRoundMaxima: [number, number];
-    let threeRoundsMaxima: [number, number];
+    let oneRound: DamageWindow;
+    let threeRounds: DamageWindow;
     let subclassResource: string;
     if (subclass.kind === "battle-manoeuvre") {
       const boostedInput = { ...attackInput, packets: [{ ...packets[0]!, dice: [...packets[0]!.dice, subclass.damageDie] }] };
       const boostedFour = repeatAttacks(boostedInput, subclass.usesPerShortRest);
       const normalFour = repeatAttacks(attackInput, 8 - subclass.usesPerShortRest);
-      oneRoundPmf = boostedFour.pmf;
-      threeRoundsPmf = combine(boostedFour.pmf, normalFour.pmf);
-      oneRoundMaxima = [boostedFour.summary.nonCritMax, boostedFour.summary.critMax];
-      threeRoundsMaxima = [boostedFour.summary.nonCritMax + normalFour.summary.nonCritMax, boostedFour.summary.critMax + normalFour.summary.critMax];
+      oneRound = boostedFour;
+      threeRounds = combineWindows(boostedFour, normalFour);
       subclassResource = "Battle Master: Action Surge in round 1; declare one manoeuvre on each of the first 4 attacks";
     } else {
       const ambushInput = { ...attackInput, packets: [{ ...packets[0]!, dice: [...packets[0]!.dice, subclass.extraAttackDamage] }] };
       const ambush = calculateAttackPmf(ambushInput);
       const normalSix = repeatAttacks(attackInput, 6);
-      oneRoundPmf = combine(normalTwo.pmf, ambush.pmf);
-      threeRoundsPmf = combine(normalSix.pmf, ambush.pmf);
-      oneRoundMaxima = [normalTwo.summary.nonCritMax + ambush.summary.nonCritMax, normalTwo.summary.critMax + ambush.summary.critMax];
-      threeRoundsMaxima = [normalSix.summary.nonCritMax + ambush.summary.nonCritMax, normalSix.summary.critMax + ambush.summary.critMax];
+      oneRound = combineWindows(normalTwo, ambush);
+      threeRounds = combineWindows(normalSix, ambush);
       subclassResource = "Gloom Stalker: Dread Ambusher once in round 1";
     }
     const refs = [candidate.classOption.classId, candidate.classOption.subclassId, candidate.weaponId, ARCHERY_ID, EXTRA_ATTACK_ID, SHARPSHOOTER_ID, ...(candidate.classOption.classId === "class-fighter" ? [ACTION_SURGE_ID] : [])].map(entityId => {
@@ -103,8 +105,8 @@ export function optimizeBuild(repository: EngineRepository, input: OptimizationR
     return [{
       ...candidate,
       attack: attack.summary,
-      oneRound: summarizeWindow(oneRoundPmf, ...oneRoundMaxima),
-      threeRounds: summarizeWindow(threeRoundsPmf, ...threeRoundsMaxima),
+      oneRound: oneRound.summary,
+      threeRounds: threeRounds.summary,
       subclassResource,
       refs,
     }];

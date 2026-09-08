@@ -209,6 +209,10 @@ function createFixtureEntity(definition: FixtureDefinition): GameEntity {
 export const fixtureEntities: GameEntity[] =
   fixtureDefinitions.map(createFixtureEntity);
 
+function fixtureSourceId(entityId: string): string {
+  return `bg3-wiki-patch-8:${entityId}`;
+}
+
 const fixtureSourceBase = {
   name: "BG3 Wiki",
   kind: "curated" as const,
@@ -220,7 +224,7 @@ const fixtureSourceBase = {
 export const fixtureSources: SourceRecord[] = [
   { id: "bg3-wiki-patch-8", ...fixtureSourceBase },
   ...fixtureEntities.map((entity) => ({
-    id: `bg3-wiki-patch-8:${entity.id}`,
+    id: fixtureSourceId(entity.id),
     ...fixtureSourceBase,
     url: entity.source.url!,
   })),
@@ -230,7 +234,7 @@ export const fixtureClaims: Claim[] = fixtureEntities.flatMap((entity) => [
   {
     id: `${entity.id}:tags`,
     entityId: entity.id,
-    sourceId: `bg3-wiki-patch-8:${entity.id}`,
+    sourceId: fixtureSourceId(entity.id),
     field: "tags",
     value: entity.tags,
     evidence: `Classification curated for ${entity.text.name}.`,
@@ -239,7 +243,7 @@ export const fixtureClaims: Claim[] = fixtureEntities.flatMap((entity) => [
   ...(entity.metadata?.["engine"] ? [{
     id: `${entity.id}:engine`,
     entityId: entity.id,
-    sourceId: `bg3-wiki-patch-8:${entity.id}`,
+    sourceId: fixtureSourceId(entity.id),
     field: "metadata.engine",
     value: entity.metadata["engine"],
     evidence: `Mechanic metadata transcribed from the ${entity.text.name} source page for Patch 8 baseline evaluation.`,
