@@ -78,5 +78,6 @@ describe("attack PMF", () => {
     expect(result.summary.p10).toBeLessThanOrEqual(result.summary.median);
     expect(result.summary.median).toBeLessThanOrEqual(result.summary.p90);
     expect(result.trace.at(-1)).toMatchObject({ step: "repeat-attacks" });
+    expect(() => repeatAttacks(base, 1_000_000)).toThrow(RangeError);
   });
 });

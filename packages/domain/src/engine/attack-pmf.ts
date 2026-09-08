@@ -25,6 +25,8 @@ export type AttackPmfResult = {
 };
 
 const one = new Map([[0, 1]]);
+const MAX_REPEATED_ATTACKS = 20;
+const MAX_REPEATED_DAMAGE_SUPPORT = 12_800;
 
 function addProbability(target: Map<number, number>, value: number, probability: number): void {
   target.set(value, (target.get(value) ?? 0) + probability);
@@ -130,7 +132,10 @@ export function calculateAttackPmf(rawInput: AttackInput): AttackPmfResult {
 }
 
 export function repeatAttacks(input: AttackInput, count: number): AttackPmfResult {
+  if (!Number.isInteger(count) || count < 0 || count > MAX_REPEATED_ATTACKS) throw new RangeError(`count must be an integer between 0 and ${MAX_REPEATED_ATTACKS}`);
   const attack = calculateAttackPmf(input);
+  const supportWidth = (attack.summary.critMax - attack.summary.minimum) * count;
+  if (supportWidth > MAX_REPEATED_DAMAGE_SUPPORT) throw new RangeError("repeated attack damage range is too wide for exact PMF calculation");
   const pmf = repeatPmf(attack.pmf, count);
   const summary = summarizePmf(pmf);
   summary.nonCritMax = attack.summary.nonCritMax * count;
