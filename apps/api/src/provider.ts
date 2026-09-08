@@ -41,7 +41,7 @@ export class AnthropicMessageProvider implements MessageProvider {
       if (signal.aborted) throw signal.reason ?? new Error("Request cancelled");
       sink.status("working");
       const stream = this.messagesClient.stream({
-        model: "claude-opus-5",
+        model: "combo/smart",
         max_tokens: 64_000,
         thinking: { type: "adaptive" },
         output_config: { effort: "high" },
