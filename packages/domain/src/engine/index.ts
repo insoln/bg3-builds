@@ -1,4 +1,5 @@
 export * from "./attack-pmf.js";
+export * from "./combat-windows.js";
 export * from "./expected-value.js";
 export * from "./generator.js";
 export * from "./metadata.js";

@@ -40,6 +40,18 @@ const provenance = [
   { entityId: "subclass-battle-master", label: "Battle Master", url: "https://bg3.wiki/wiki/Battle_Master", mechanic: "class eligibility" },
   { entityId: "passive-archery", label: "Archery", url: "https://bg3.wiki/wiki/Archery", mechanic: "Archery" },
 ];
+
+function evaluatedWindow(label: string, turns = 1) {
+  return {
+    status: "evaluated" as const,
+    label,
+    turns,
+    summary: damage,
+    probabilityKill: 0.5,
+    events: [{ kind: "ranged-attack" as const, source: "ordinary" as const, count: 4 }],
+    resourcesSpent: [{ resource: "Action Surge", amount: 1, recovery: "short-rest" as const }],
+  };
+}
 const report = optimizationReportSchema.parse({
   kind: "optimization",
   title: "Curated result",
@@ -51,15 +63,23 @@ const report = optimizationReportSchema.parse({
       rank: 1,
       build,
       weaponId: "item-titanstring-bow",
-      score: 20,
-      attack: damage,
-      oneRound: damage,
-      threeRounds: damage,
-      policy: { archery: "always", extraAttack: "always", sharpshooter: "enabled", subclassResource: "Action Surge" },
+      rankingScore: 20,
+      windows: {
+        singleAttack: evaluatedWindow("Single attack"),
+        opener: evaluatedWindow("Opener"),
+        nova: evaluatedWindow("Nova"),
+        steadyState: evaluatedWindow("Steady-state round"),
+        surprise: { status: "unsupported", label: "Surprised first round", reasonCode: "surprise-initiative-and-condition-state", explanation: "Needs initiative." },
+        setup: { status: "unsupported", label: "Setup", reasonCode: "setup-effect-state-not-modeled", explanation: "Needs effect state." },
+        horizons: [1, 2, 3, 5].map(function createHorizon(rounds) {
+          return { rounds, window: evaluatedWindow(`${rounds}-round total`, rounds) };
+        }),
+      },
+      policy: { archery: "always", extraAttack: "always", sharpshooter: "enabled" },
       provenance,
     }],
     validation: { generatedCandidates: 1, validCandidates: 1, rejectedCandidates: 0, rejectionReasons: {} },
-    bounds: { evaluatedCandidates: 1, candidateSetSize: 1, returnedCandidates: 1, searchScope: "curated-l5-act1-ranged-v1", exactWithinDeclaredScope: true, globallyOptimal: false },
+    ranking: { window: "nova", metric: "expectedDamage", tieBreakers: ["steadyState.expectedDamage", "build.id", "sharpshooterPolicy"] }, bounds: { evaluatedCandidates: 1, candidateSetSize: 1, returnedCandidates: 1, searchScope: "curated-l5-act1-ranged-windows-v2", exactWithinDeclaredScope: true, globallyOptimal: false },
     unsupportedMechanics: ["surprise"],
     guarantee: "Every declared candidate was evaluated.",
   },
@@ -86,6 +106,11 @@ describe("OptimizationReportCard", () => {
     expect(titanstringLink.target).toBe("_blank");
     expect(titanstringLink.rel).toBe("noopener noreferrer");
     expect([...view.node.querySelectorAll("a")].find(link => link.textContent === "Fighter")?.querySelector("img")).toBeNull();
+    expect(view.node.textContent).toContain("Target HP50");
+    expect(view.node.textContent).toContain("Nova");
+    expect(view.node.textContent).toContain("Action Surge ×1 (short-rest)");
+    expect(view.node.textContent).toContain("Surprised first round: unsupported");
+    expect(view.node.textContent).toContain("Setup: unsupported");
     view.unmount();
   });
 

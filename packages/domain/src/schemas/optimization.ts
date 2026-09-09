@@ -3,6 +3,8 @@ import { attackRollModeSchema, targetDamageModifiersSchema } from "./attack.js";
 import { buildSchema } from "./build.js";
 import { entityIconUrlSchema } from "./entities.js";
 
+const DEFAULT_HORIZONS = [1, 2, 3, 5] as const;
+
 /** The intentionally narrow, exhaustively enumerable search slice currently supported. */
 export const optimizationRequestSchema = z.object({
   gameVersion: z.literal("Patch 8"),
@@ -11,20 +13,62 @@ export const optimizationRequestSchema = z.object({
   combat: z.object({
     mode: z.literal("ranged"),
     targetArmorClass: z.int().min(1).max(30).default(15),
+    targetHitPoints: z.int().min(1).max(1_000).default(50),
     rollMode: attackRollModeSchema.default("normal"),
     target: targetDamageModifiersSchema.default({ immunities: [], resistances: [], vulnerabilities: [], flatReduction: 0, flatReductionByType: {} }),
     surprise: z.literal(false).default(false),
     guaranteedCritical: z.literal(false).default(false),
     areaTargets: z.literal(1).default(1),
-  }).strict().default({ mode: "ranged", targetArmorClass: 15, rollMode: "normal", target: { immunities: [], resistances: [], vulnerabilities: [], flatReduction: 0, flatReductionByType: {} }, surprise: false, guaranteedCritical: false, areaTargets: 1 }),
+    horizons: z.array(z.int().min(1).max(8)).max(8).default([...DEFAULT_HORIZONS]),
+  }).strict().default({ mode: "ranged", targetArmorClass: 15, targetHitPoints: 50, rollMode: "normal", target: { immunities: [], resistances: [], vulnerabilities: [], flatReduction: 0, flatReductionByType: {} }, surprise: false, guaranteedCritical: false, areaTargets: 1, horizons: [...DEFAULT_HORIZONS] }),
   topK: z.int().min(1).max(16).default(5),
 }).strict();
 
-const damageSummarySchema = z.object({
-  expected: z.number().finite(), minimum: z.number().finite(), minimumOnHit: z.number().finite(),
-  nonCritMax: z.number().finite(), critMax: z.number().finite(), variance: z.number().finite(),
-  stddev: z.number().finite(), p10: z.number().finite(), median: z.number().finite(), p90: z.number().finite(), probabilityZero: z.number().min(0).max(1),
+export const damageSummarySchema = z.object({
+  expected: z.number().finite().nonnegative(), minimum: z.number().finite().nonnegative(), minimumOnHit: z.number().finite().nonnegative(),
+  nonCritMax: z.number().finite().nonnegative(), critMax: z.number().finite().nonnegative(), variance: z.number().finite().nonnegative(),
+  stddev: z.number().finite().nonnegative(), p10: z.number().finite().nonnegative(), median: z.number().finite().nonnegative(), p90: z.number().finite().nonnegative(), probabilityZero: z.number().min(0).max(1),
+}).strict().superRefine((summary, context) => {
+  if (!(summary.minimum <= summary.p10 && summary.p10 <= summary.median && summary.median <= summary.p90 && summary.p90 <= summary.critMax)) {
+    context.addIssue({ code: "custom", message: "damage quantiles must be ordered between minimum and critical maximum" });
+  }
+  if (summary.minimumOnHit < summary.minimum || summary.minimumOnHit > summary.critMax) {
+    context.addIssue({ code: "custom", message: "minimumOnHit must be between minimum and critical maximum" });
+  }
+  if (summary.nonCritMax > summary.critMax) context.addIssue({ code: "custom", message: "non-critical maximum cannot exceed critical maximum" });
+  if (Math.abs(summary.stddev ** 2 - summary.variance) > 1e-8 * Math.max(1, summary.variance)) {
+    context.addIssue({ code: "custom", message: "standard deviation must match variance" });
+  }
+  if (summary.minimum > 0 && summary.probabilityZero > 0) context.addIssue({ code: "custom", message: "positive minimum damage cannot have zero-damage probability" });
+});
+
+const recoveryCadenceSchema = z.enum(["at-will", "encounter", "short-rest", "long-rest"]);
+const windowEventSchema = z.object({
+  kind: z.literal("ranged-attack"),
+  source: z.enum(["ordinary", "dread-ambusher"]),
+  count: z.int().positive(),
 }).strict();
+const resourceSpendSchema = z.object({
+  resource: z.string().min(1),
+  amount: z.int().positive(),
+  recovery: recoveryCadenceSchema,
+}).strict();
+export const evaluatedWindowSchema = z.object({
+  status: z.literal("evaluated"),
+  label: z.string().min(1),
+  turns: z.int().positive(),
+  summary: damageSummarySchema,
+  probabilityKill: z.number().min(0).max(1),
+  events: z.array(windowEventSchema).min(1),
+  resourcesSpent: z.array(resourceSpendSchema),
+}).strict();
+const unsupportedWindowSchema = z.object({
+  status: z.literal("unsupported"),
+  label: z.string().min(1),
+  reasonCode: z.enum(["surprise-initiative-and-condition-state", "setup-effect-state-not-modeled"]),
+  explanation: z.string().min(1),
+}).strict();
+export const damageWindowResultSchema = z.discriminatedUnion("status", [evaluatedWindowSchema, unsupportedWindowSchema]);
 
 const provenanceRefSchema = z.object({
   entityId: z.string().min(1),
@@ -33,21 +77,56 @@ const provenanceRefSchema = z.object({
   iconUrl: entityIconUrlSchema.optional(),
   mechanic: z.string().min(1),
 }).strict();
-const policySchema = z.object({ archery: z.literal("always"), extraAttack: z.literal("always"), sharpshooter: z.enum(["enabled", "disabled"]), subclassResource: z.string().min(1) }).strict();
-const rankedCandidateSchema = z.object({
+const policySchema = z.object({ archery: z.literal("always"), extraAttack: z.literal("always"), sharpshooter: z.enum(["enabled", "disabled"]) }).strict();
+export const rankedCandidateSchema = z.object({
   rank: z.int().positive(), build: buildSchema, weaponId: z.string().min(1),
-  score: z.number().finite(), attack: damageSummarySchema, oneRound: damageSummarySchema, threeRounds: damageSummarySchema,
+  rankingScore: z.number().finite(),
+  windows: z.object({
+    singleAttack: evaluatedWindowSchema,
+    opener: evaluatedWindowSchema,
+    nova: evaluatedWindowSchema,
+    steadyState: evaluatedWindowSchema,
+    surprise: unsupportedWindowSchema,
+    setup: unsupportedWindowSchema,
+    horizons: z.array(z.object({ rounds: z.int().positive(), window: evaluatedWindowSchema }).strict()).min(4),
+  }).strict(),
   policy: policySchema, provenance: z.array(provenanceRefSchema).min(4),
 }).strict();
 
 export const optimizerResultSchema = z.object({
   request: optimizationRequestSchema,
   candidates: z.array(rankedCandidateSchema).min(1),
+  ranking: z.object({ window: z.literal("nova"), metric: z.literal("expectedDamage"), tieBreakers: z.tuple([z.literal("steadyState.expectedDamage"), z.literal("build.id"), z.literal("sharpshooterPolicy")]) }).strict(),
   validation: z.object({ generatedCandidates: z.int().nonnegative(), validCandidates: z.int().nonnegative(), rejectedCandidates: z.int().nonnegative(), rejectionReasons: z.record(z.string(), z.int().nonnegative()) }).strict(),
-  bounds: z.object({ evaluatedCandidates: z.int().nonnegative(), candidateSetSize: z.int().nonnegative(), returnedCandidates: z.int().positive(), searchScope: z.literal("curated-l5-act1-ranged-v1"), exactWithinDeclaredScope: z.literal(true), globallyOptimal: z.literal(false) }).strict(),
+  bounds: z.object({ evaluatedCandidates: z.int().nonnegative(), candidateSetSize: z.int().nonnegative(), returnedCandidates: z.int().positive(), searchScope: z.literal("curated-l5-act1-ranged-windows-v2"), exactWithinDeclaredScope: z.literal(true), globallyOptimal: z.literal(false) }).strict(),
   unsupportedMechanics: z.array(z.string().min(1)),
   guarantee: z.string().min(1),
-}).strict();
+}).strict().superRefine((result, context) => {
+  const rejectionTotal = Object.values(result.validation.rejectionReasons).reduce((total, count) => total + count, 0);
+  const expectedHorizons = result.request.combat.horizons;
+  const issue = (message: string): void => context.addIssue({ code: "custom", message });
+  if (result.validation.generatedCandidates !== result.validation.validCandidates + result.validation.rejectedCandidates) issue("generated candidate count must equal valid plus rejected candidates");
+  if (result.bounds.candidateSetSize !== result.validation.generatedCandidates) issue("candidate set size must equal generated candidate count");
+  if (result.bounds.evaluatedCandidates !== result.validation.validCandidates) issue("evaluated candidate count must equal valid candidate count");
+  if (result.bounds.returnedCandidates !== result.candidates.length) issue("returned candidate count must equal candidate array length");
+  if (rejectionTotal !== result.validation.rejectedCandidates) issue("rejection reason counts must equal rejected candidate count");
+  result.candidates.forEach((candidate, index) => {
+    if (candidate.rank !== index + 1) issue("candidate ranks must be contiguous and ordered");
+    if (candidate.rankingScore !== candidate.windows.nova.summary.expected) issue("ranking score must equal Nova expected damage");
+    const horizonRounds = candidate.windows.horizons.map(horizon => horizon.rounds);
+    if (horizonRounds.length !== expectedHorizons.length || horizonRounds.some((rounds, horizonIndex) => rounds !== expectedHorizons[horizonIndex])) issue("candidate horizons must match the effective request");
+    if (candidate.windows.horizons.some(({ rounds, window }) => rounds !== window.turns)) issue("horizon turns must equal its round count");
+  });
+  for (let index = 1; index < result.candidates.length; index += 1) {
+    const previous = result.candidates[index - 1]!;
+    const current = result.candidates[index]!;
+    const comparison = current.windows.nova.summary.expected - previous.windows.nova.summary.expected
+      || current.windows.steadyState.summary.expected - previous.windows.steadyState.summary.expected
+      || (previous.build.id ?? "").localeCompare(current.build.id ?? "")
+      || Number(previous.policy.sharpshooter === "enabled") - Number(current.policy.sharpshooter === "enabled");
+    if (comparison > 0) issue("candidates must follow the declared ranking order");
+  }
+});
 
 export const optimizationReportSchema = z.object({
   kind: z.literal("optimization"), title: z.string().trim().min(1).max(160), summary: z.string().trim().min(1).max(2_000),
@@ -56,5 +135,7 @@ export const optimizationReportSchema = z.object({
 
 export type OptimizationRequest = z.input<typeof optimizationRequestSchema>;
 export type ResolvedOptimizationRequest = z.output<typeof optimizationRequestSchema>;
+export type DamageWindowResult = z.infer<typeof damageWindowResultSchema>;
+export type EvaluatedDamageWindow = z.infer<typeof evaluatedWindowSchema>;
 export type OptimizerResult = z.infer<typeof optimizerResultSchema>;
 export type OptimizationReport = z.infer<typeof optimizationReportSchema>;

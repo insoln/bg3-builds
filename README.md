@@ -64,13 +64,17 @@ body-parsing clients read the same shape.
   it is compiled the two SQLite-backed data tests fail to load their binding.
 - The exact ranged optimizer exhaustively ranks only its declared Patch 8,
   Level 5, Act 1 scope: Fighter/Battle Master or Ranger/Gloom Stalker, four
-  curated bows, and Sharpshooter enabled/disabled. It reports exact attack,
-  first-round, and three-round PMFs within that finite set—not a global optimum.
-  Fighter windows include Action Surge but exclude Battle Master superiority-die
-  damage until successful-hit resource consumption is modeled exactly.
-- Surprise, Executioner/guaranteed critical state, multi-target/AoE behavior,
-  Arrow of Many Targets, and full DRS/DR event graphs remain unsupported by the
-  exact optimizer and are reported as limitations.
+  curated bows, and Sharpshooter enabled/disabled. It reports named single-
+  attack, opener, Nova, steady-state, and 1/2/3/5/custom-N exact PMF windows,
+  ranked by Nova expected damage—not a global optimum. HP-threshold probability
+  means kill by the end of the named window against the same continuously
+  available target; attacks do not stop or retarget after an earlier kill.
+- Window schedules explicitly list Action Surge (short-rest recovery) or Dread
+  Ambusher (once per encounter). Battle Master superiority-die damage remains
+  excluded until its successful-hit resource consumption is modeled exactly.
+- Surprise, setup effects, Executioner/guaranteed critical state, multi-target/
+  AoE behavior, Arrow of Many Targets, and full DRS/DR event graphs remain
+  unsupported and are reported as limitations rather than estimated.
 
 See `docs/architecture.md`, `docs/data-sources.md`, and
 `docs/fixture-coverage.md` for boundaries, provenance rules, and coverage.

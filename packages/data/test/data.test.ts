@@ -150,10 +150,31 @@ describe("data layer", () => {
     ).toBe("https://bg3.wiki/w/images/thumb/3/36/Longbow_PlusOne_Icon.png/300px-Longbow_PlusOne_Icon.png.webp");
     expect(first.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-ranger").every(candidate => candidate.build.choices[0]?.level === 2)).toBe(true);
     expect(first.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-fighter").every(candidate => candidate.provenance.some(ref => ref.entityId === "action-action-surge"))).toBe(true);
-    expect(first.candidates[0]!.oneRound.expected).toBeGreaterThanOrEqual(first.candidates[1]!.oneRound.expected);
-    expect(first.candidates.every(candidate => candidate.oneRound.nonCritMax <= candidate.oneRound.critMax)).toBe(true);
-    expect(first.candidates.some(candidate => candidate.oneRound.nonCritMax < candidate.oneRound.critMax)).toBe(true);
+    expect(first.candidates[0]!.windows.nova.summary.expected).toBeGreaterThanOrEqual(first.candidates[1]!.windows.nova.summary.expected);
+    expect(first.candidates.every(candidate => candidate.windows.nova.summary.nonCritMax <= candidate.windows.nova.summary.critMax)).toBe(true);
+    expect(first.candidates.some(candidate => candidate.windows.nova.summary.nonCritMax < candidate.windows.nova.summary.critMax)).toBe(true);
+    expect(first.ranking).toEqual({ window: "nova", metric: "expectedDamage", tieBreakers: ["steadyState.expectedDamage", "build.id", "sharpshooterPolicy"] });
+    expect(first.candidates.every(candidate => candidate.windows.surprise.status === "unsupported" && candidate.windows.setup.status === "unsupported")).toBe(true);
   });
+  it("normalizes custom horizons and propagates target HP into optimizer windows", () => {
+    const result = optimizeBuild(new InMemoryEngineRepository(fixtureEntities), {
+      gameVersion: "Patch 8", level: 5, availableAct: 1, topK: 16,
+      combat: { mode: "ranged", targetHitPoints: 1_000, horizons: [8, 2, 8] },
+    });
+    expect(result.request.combat.horizons).toEqual([1, 2, 3, 5, 8]);
+    expect(result.candidates.every(candidate => candidate.windows.horizons.map(horizon => horizon.rounds).join(",") === "1,2,3,5,8")).toBe(true);
+    expect(result.candidates.every(candidate => candidate.windows.horizons.at(-1)?.window.turns === 8)).toBe(true);
+    expect(result.candidates.every(candidate => candidate.windows.nova.probabilityKill === 0)).toBe(true);
+
+    const ranger = result.candidates.find(candidate => candidate.build.classes[0]?.classId === "class-ranger")!;
+    expect(ranger.windows.nova.events).toEqual([
+      { kind: "ranged-attack", source: "ordinary", count: 2 },
+      { kind: "ranged-attack", source: "dread-ambusher", count: 1 },
+    ]);
+    expect(ranger.windows.nova.resourcesSpent).toEqual([{ resource: "Dread Ambusher", amount: 1, recovery: "encounter" }]);
+    expect(ranger.windows.steadyState.resourcesSpent).toEqual([]);
+  });
+
   it("matches hand-derived combat-window oracles", () => {
     const result = optimizeBuild(new InMemoryEngineRepository(fixtureEntities), {
       gameVersion: "Patch 8", level: 5, availableAct: 1, topK: 16,
@@ -164,19 +185,29 @@ describe("data layer", () => {
         && value.policy.sharpshooter === sharpshooter)!;
 
     expect(candidate("class-fighter", "disabled")).toMatchObject({
-      attack: { expected: expect.closeTo(6.6), nonCritMax: 12, critMax: 20 },
-      oneRound: { expected: expect.closeTo(26.4), nonCritMax: 48, critMax: 80 },
-      threeRounds: { expected: expect.closeTo(52.8), nonCritMax: 96, critMax: 160 },
+      windows: {
+        singleAttack: { summary: { expected: expect.closeTo(6.6), nonCritMax: 12, critMax: 20 } },
+        opener: { summary: { expected: expect.closeTo(13.2), nonCritMax: 24, critMax: 40 } },
+        nova: { summary: { expected: expect.closeTo(26.4), nonCritMax: 48, critMax: 80 } },
+        steadyState: { summary: { expected: expect.closeTo(13.2), nonCritMax: 24, critMax: 40 } },
+        horizons: expect.arrayContaining([{ rounds: 3, window: expect.objectContaining({ summary: expect.objectContaining({ expected: expect.closeTo(52.8), nonCritMax: 96, critMax: 160 }) }) }]),
+      },
     });
     expect(candidate("class-ranger", "disabled")).toMatchObject({
-      attack: { expected: expect.closeTo(6.6), nonCritMax: 12, critMax: 20 },
-      oneRound: { expected: expect.closeTo(23.4), nonCritMax: 44, critMax: 76 },
-      threeRounds: { expected: expect.closeTo(49.8), nonCritMax: 92, critMax: 156 },
+      windows: {
+        singleAttack: { summary: { expected: expect.closeTo(6.6), nonCritMax: 12, critMax: 20 } },
+        opener: { summary: { expected: expect.closeTo(23.4), nonCritMax: 44, critMax: 76 } },
+        nova: { summary: { expected: expect.closeTo(23.4), nonCritMax: 44, critMax: 76 } },
+        steadyState: { summary: { expected: expect.closeTo(13.2), nonCritMax: 24, critMax: 40 } },
+        horizons: expect.arrayContaining([{ rounds: 3, window: expect.objectContaining({ summary: expect.objectContaining({ expected: expect.closeTo(49.8), nonCritMax: 92, critMax: 156 }) }) }]),
+      },
     });
     expect(candidate("class-fighter", "enabled")).toMatchObject({
-      attack: { expected: expect.closeTo(9.475), nonCritMax: 22, critMax: 30 },
-      oneRound: { expected: expect.closeTo(37.9), nonCritMax: 88, critMax: 120 },
-      threeRounds: { expected: expect.closeTo(75.8), nonCritMax: 176, critMax: 240 },
+      windows: {
+        singleAttack: { summary: { expected: expect.closeTo(9.475), nonCritMax: 22, critMax: 30 } },
+        nova: { summary: { expected: expect.closeTo(37.9), nonCritMax: 88, critMax: 120 } },
+        horizons: expect.arrayContaining([{ rounds: 3, window: expect.objectContaining({ summary: expect.objectContaining({ expected: expect.closeTo(75.8), nonCritMax: 176, critMax: 240 }) }) }]),
+      },
     });
   });
   it("applies target AC, roll mode, mitigation, and Titanstring independently", () => {
@@ -187,11 +218,11 @@ describe("data layer", () => {
       result.candidates.find(candidate => candidate.build.classes[0]?.classId === "class-fighter"
         && candidate.weaponId === weaponId && candidate.policy.sharpshooter === "disabled")!;
     const normal = run();
-    expect(find(run({ rollMode: "advantage" })).attack.expected).toBeGreaterThan(find(normal).attack.expected);
-    expect(find(run({ rollMode: "disadvantage" })).attack.expected).toBeLessThan(find(normal).attack.expected);
-    expect(find(run({ targetArmorClass: 20 })).attack.expected).toBeLessThan(find(normal).attack.expected);
-    expect(find(run({ target: { resistances: ["piercing"] } })).attack.expected).toBeLessThan(find(normal).attack.expected);
-    expect(find(normal, "item-titanstring-bow").attack.expected).toBeGreaterThan(find(normal).attack.expected);
+    expect(find(run({ rollMode: "advantage" })).windows.singleAttack.summary.expected).toBeGreaterThan(find(normal).windows.singleAttack.summary.expected);
+    expect(find(run({ rollMode: "disadvantage" })).windows.singleAttack.summary.expected).toBeLessThan(find(normal).windows.singleAttack.summary.expected);
+    expect(find(run({ targetArmorClass: 20 })).windows.singleAttack.summary.expected).toBeLessThan(find(normal).windows.singleAttack.summary.expected);
+    expect(find(run({ target: { resistances: ["piercing"] } })).windows.singleAttack.summary.expected).toBeLessThan(find(normal).windows.singleAttack.summary.expected);
+    expect(find(normal, "item-titanstring-bow").windows.singleAttack.summary.expected).toBeGreaterThan(find(normal).windows.singleAttack.summary.expected);
   });
   it("bounds and allowlists URL manifests", () => {
     expect(

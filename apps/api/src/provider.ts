@@ -112,8 +112,8 @@ function optimizationReports(
 
     reports.push(optimizationReportSchema.parse({
       kind: "optimization",
-      title: `Act 1 ranged Top ${parsed.data.bounds.returnedCandidates}: ${parsed.data.candidates[0]!.build.name}`,
-      summary: `Exactly evaluated all ${parsed.data.bounds.evaluatedCandidates} legal candidates in the declared curated scope and returned a deterministic ranking. This is not a global optimum.`,
+      title: `Act 1 ranged Nova Top ${parsed.data.bounds.returnedCandidates}: ${parsed.data.candidates[0]!.build.name}`,
+      summary: `Exactly evaluated all ${parsed.data.bounds.evaluatedCandidates} legal candidates in the declared curated scope and ranked them by Nova expected damage. Opener, steady-state, and requested N-round windows are reported separately. This is not a global optimum.`,
       result: parsed.data,
       generatedAt: new Date().toISOString(),
     }));

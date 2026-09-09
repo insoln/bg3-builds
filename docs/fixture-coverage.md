@@ -13,3 +13,5 @@ Run `pnpm verify:fixtures`. Verification requires:
 - valid source/entity provenance references and one classification claim per entity.
 
 This fixture is test/demo input, not a complete game database. Item mechanics, acquisition details, patch-specific conditions, and precise numerical effects must be imported as provenance-backed claims before deterministic calculations may rely on them.
+
+The v2 ranged combat-window slice relies only on executable fixture metadata for four bows, Archery, Extra Attack, Sharpshooter, Action Surge, and Dread Ambusher. Its opener/Nova/steady schedules and resource cadence are curated engine inputs, not behavior inferred from wiki prose. Surprise, setup effects, and Battle Master superiority-die consumption remain non-executable until equally strict provenance-backed state rules are added.

@@ -44,19 +44,29 @@ text and produce warnings rather than fabricated numeric behavior.
 
 ## Exact ranged optimizer slice
 
-`optimize_build` exhaustively enumerates 16 candidates in a versioned finite
-scope: Patch 8, Level 5, Act 1, Fighter/Battle Master or Ranger/Gloom Stalker,
-four executable bows, and two Sharpshooter policies. Every candidate passes
-static validation before its exact discrete attack, first-round, and three-round
-damage PMFs are composed and ranked. Fighter windows include Action Surge;
-Battle Master superiority-die damage is excluded because its successful-hit
-resource consumption requires a stateful evaluator. The guarantee is therefore
+`optimize_build` exhaustively enumerates 16 candidates in the versioned
+`curated-l5-act1-ranged-windows-v2` scope: Patch 8, Level 5, Act 1,
+Fighter/Battle Master or Ranger/Gloom Stalker, four executable bows, and two
+Sharpshooter policies. Every candidate passes static validation before exact
+PMFs are composed for single attack, opener, Nova, steady-state, and requested
+N-round horizons. The optimizer ranks by Nova expected damage, then steady-state
+expected damage and stable identity/policy ties.
+
+A combat window is a declared sequence of independent attack events. Fighter
+Nova spends Action Surge once per short rest; Gloom Stalker opener/Nova spends
+Dread Ambusher once per encounter. An N-round horizon is one Nova opening plan
+followed by N−1 steady-state rounds. It is a same-target damage benchmark: target
+death does not stop later attacks or trigger retargeting. `probabilityKill` is
+the exact PMF mass at or above the requested HP by the end of that window, not
+an initiative-relative kill probability. The guarantee is therefore
 `exact-within-declared-scope`, never global optimality.
 
 ## Deliberate first-release limits
 
-Surprise, Executioner and other stateful guaranteed-critical effects,
-multi-target/AoE geometry, Arrow of Many Targets, exact DRS/DR event graphs,
-complete game corpus, and party-wide unique-item allocation remain outside this
-vertical slice. Unsupported mechanics are returned explicitly instead of being
-folded into an approximate score.
+Surprise and setup are typed unsupported windows because initiative, condition
+duration, action restoration, concentration, and persistent effect state are
+not yet executable. Battle Master superiority-die consumption, Executioner and
+other stateful guaranteed-critical effects, multi-target/AoE geometry, Arrow of
+Many Targets, exact DRS/DR event graphs, complete game corpus, and party-wide
+unique-item allocation remain outside this vertical slice. Unsupported mechanics
+are returned explicitly instead of being folded into an approximate score.

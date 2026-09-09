@@ -34,14 +34,14 @@ const build = (name: string, equipment: Build["equipment"] = []): Build => ({
   equipment,
 });
 
-const toolUse = (name: "validate_build" | "compare_builds", input: unknown): Anthropic.ToolUseBlock => ({
+const toolUse = (name: "validate_build" | "compare_builds" | "optimize_build", input: unknown): Anthropic.ToolUseBlock => ({
   type: "tool_use",
   id: "tool-use-id",
   name,
   input,
 });
 
-const result = async (name: "validate_build" | "compare_builds", input: unknown): Promise<unknown> => {
+const result = async (name: "validate_build" | "compare_builds" | "optimize_build", input: unknown): Promise<unknown> => {
   const response = await executeGameTool(reader, toolUse(name, input));
   expect(response.is_error).not.toBe(true);
   return JSON.parse(response.content as string);
@@ -84,6 +84,23 @@ describe("runtime game tools", () => {
       rejected: [],
       rankings: expect.arrayContaining([expect.objectContaining({ build: expect.objectContaining({ name: expect.any(String) }) })]),
     });
+  });
+
+  it("exposes and forwards optimizer window inputs", async () => {
+    const optimize = gameTools.find((tool) => tool.name === "optimize_build");
+    const requestSchema = (optimize?.input_schema as { properties: { request: { properties: { combat: { properties: Record<string, unknown> } } } } }).properties.request;
+    expect(Object.keys(requestSchema.properties.combat.properties)).toEqual(expect.arrayContaining(["targetHitPoints", "horizons"]));
+
+    const input = { request: { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", targetHitPoints: 75, horizons: [6] } } };
+    const response = await executeGameTool({
+      ...reader,
+      optimizeBuild: async request => ({ request } as never),
+    }, toolUse("optimize_build", input));
+    expect(response.is_error).not.toBe(true);
+    expect(JSON.parse(response.content as string)).toMatchObject(input);
+
+    const invalid = await executeGameTool(reader, toolUse("optimize_build", { request: { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", targetHitPoints: 0 } } }));
+    expect(invalid.is_error).toBe(true);
   });
 
   it("exposes closed, explicit ability score properties in build tool schemas", () => {
