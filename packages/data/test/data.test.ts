@@ -84,6 +84,18 @@ describe("data layer", () => {
     expect(titanstring?.source.url).toBe("https://bg3.wiki/wiki/Titanstring_Bow");
     expect(fixtureEntities.find((entity) => entity.id === "subclass-school-of-divination")?.source.url)
       .toBe("https://bg3.wiki/wiki/Divination_School");
+    expect(fixtureEntities.find((entity) => entity.id === "subclass-assassin")?.metadata?.["engine"])
+      .toMatchObject({ parentClassId: "class-rogue", minimumClassLevel: 3 });
+    expect(fixtureEntities.find((entity) => entity.id === "passive-assassins-alacrity")?.source.url)
+      .toBe("https://bg3.wiki/wiki/Assassin's_Alacrity");
+    expect(fixtureEntities.find((entity) => entity.id === "passive-assassinate-initiative")?.source.url)
+      .toBe("https://bg3.wiki/wiki/Assassinate%3A_Initiative");
+    expect(fixtureEntities.find((entity) => entity.id === "passive-assassinate-ambush")?.source.url)
+      .toBe("https://bg3.wiki/wiki/Assassinate%3A_Ambush");
+    expect(fixtureEntities.find((entity) => entity.id === "action-sneak-attack-ranged")?.metadata?.["engine"])
+      .toMatchObject({ ranged: { kind: "sneak-attack", damageDice: { count: 3, sides: 6 }, qualificationWithAdvantage: true, oncePerTurn: true } });
+    expect(fixtureEntities.find((entity) => entity.id === "subclass-gloom-stalker")?.metadata?.["engine"])
+      .toMatchObject({ initiative: 3 });
     expect(titanstring?.iconUrl).toContain("Longbow_PlusOne_Icon.png");
     expect(fixtureClaims.find((claim) => claim.id === "item-titanstring-bow:engine")).toMatchObject({
       field: "metadata.engine",
@@ -135,13 +147,13 @@ describe("data layer", () => {
   });
   it("exactly and deterministically ranks the complete curated ranged scope", () => {
     const repository = new InMemoryEngineRepository(fixtureEntities);
-    const request = { gameVersion: "Patch 8", level: 5 as const, availableAct: 1 as const, combat: { mode: "ranged" as const, targetArmorClass: 15, surprise: false as const, guaranteedCritical: false as const, areaTargets: 1 as const }, topK: 5 };
+    const request = { gameVersion: "Patch 8", level: 5 as const, availableAct: 1 as const, combat: { mode: "ranged" as const, targetArmorClass: 15, targetInitiativeModifier: 0, targetDexterityScore: 10, equalTotalAndDexterity: "target-first" as const, surprisedDeniedTurnCountsAsTaken: true, surprise: false as const, guaranteedCritical: false as const, areaTargets: 1 as const }, topK: 5 };
     const first = optimizeBuild(repository, request);
     const second = optimizeBuild(repository, request);
     expect(optimizerResultSchema.parse(first)).toEqual(first);
     expect(first).toEqual(second);
-    expect(first.bounds).toMatchObject({ candidateSetSize: 16, evaluatedCandidates: 16, returnedCandidates: 5, exactWithinDeclaredScope: true });
-    expect(first.validation).toEqual({ generatedCandidates: 16, validCandidates: 16, rejectedCandidates: 0, rejectionReasons: {} });
+    expect(first.bounds).toMatchObject({ candidateSetSize: 24, evaluatedCandidates: 24, returnedCandidates: 5, searchScope: "curated-l5-act1-ranged-timeline-v3", exactWithinDeclaredScope: true });
+    expect(first.validation).toEqual({ generatedCandidates: 24, validCandidates: 24, rejectedCandidates: 0, rejectionReasons: {} });
     expect(first.candidates.map(candidate => candidate.rank)).toEqual([1, 2, 3, 4, 5]);
     expect(first.candidates.every(candidate => candidate.provenance.length >= 6)).toBe(true);
     expect(first.candidates
@@ -155,11 +167,57 @@ describe("data layer", () => {
     expect(first.candidates.some(candidate => candidate.windows.nova.summary.nonCritMax < candidate.windows.nova.summary.critMax)).toBe(true);
     expect(first.ranking).toEqual({ window: "nova", metric: "expectedDamage", tieBreakers: ["steadyState.expectedDamage", "build.id", "sharpshooterPolicy"] });
     expect(first.candidates.every(candidate => candidate.windows.surprise.status === "unsupported" && candidate.windows.setup.status === "unsupported")).toBe(true);
+    expect(first.unsupportedMechanics).not.toEqual(expect.arrayContaining([expect.stringMatching(/surprise initiative|initiative state/i)]));
+  });
+  it("evaluates all 24 candidates and Assassin timeline conditions", () => {
+    const run = (surprisedDeniedTurnCountsAsTaken: boolean) => optimizeBuild(new InMemoryEngineRepository(fixtureEntities), {
+      gameVersion: "Patch 8", level: 5, availableAct: 1, topK: 24,
+      combat: {
+        mode: "ranged", targetInitiativeModifier: 3, targetDexterityScore: 16,
+        equalTotalAndDexterity: "target-first", surprisedDeniedTurnCountsAsTaken,
+      },
+    });
+    const result = run(false);
+    expect(result.candidates).toHaveLength(24);
+    expect(result.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-rogue")).toHaveLength(8);
+    expect(result.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-fighter")).toHaveLength(8);
+    expect(result.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-ranger")).toHaveLength(8);
+    const assassins = result.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-rogue");
+    expect(assassins.every(candidate => candidate.policy.archery === "unavailable" && candidate.policy.extraAttack === "unavailable")).toBe(true);
+    expect(assassins.every(candidate => candidate.build.raceId === "race-wood-elf")).toBe(true);
+    expect(assassins.every(candidate => candidate.windows.opener.events[0]?.count === 1 && candidate.windows.steadyState.events[0]?.count === 1)).toBe(true);
+    expect(assassins.every(candidate => [
+      "passive-assassins-alacrity", "passive-assassinate-initiative", "passive-assassinate-ambush", "action-sneak-attack-ranged",
+    ].every(id => candidate.provenance.some(ref => ref.entityId === id)))).toBe(true);
+    expect(result.candidates.filter(candidate => candidate.build.classes[0]?.classId === "class-ranger")
+      .every(candidate => candidate.timeline.initiative.candidateModifier === 6)).toBe(true);
+
+    const fighter = result.candidates.find(candidate => candidate.build.classes[0]?.classId === "class-fighter"
+      && candidate.weaponId === "item-longbow-plus-one" && candidate.policy.sharpshooter === "disabled")!;
+    expect(fighter.timeline.noSurprise.cases.find(value => value.order === "candidate-first")).toMatchObject({
+      turnsBeforeTargetFirstActionableTurn: [{ events: [{ kind: "ranged-attack", source: "ordinary", count: 4 }] }],
+      appliedFeatures: ["passive-extra-attack", "action-action-surge"],
+    });
+
+    const assassin = assassins.find(candidate => candidate.weaponId === "item-longbow-plus-one" && candidate.policy.sharpshooter === "disabled")!;
+    expect(assassin.timeline.metric).toBe("probability-kill-before-target-first-actionable-turn");
+    expect(assassin.timeline.initiative).toMatchObject({ candidateModifier: 3, candidateDexterityScore: 16, targetModifier: 3, targetDexterityScore: 16, equalTotalAndDexterity: "target-first", surprisedDeniedTurnCountsAsTaken: false });
+    expect(assassin.timeline.noSurprise.cases.map(value => value.order).sort()).toEqual(["candidate-first", "target-first"]);
+    expect(assassin.timeline.surprised.cases.find(value => value.order === "candidate-first")?.candidateTurns).toBe(2);
+    expect(assassin.timeline.surprised.cases.find(value => value.order === "target-first")?.candidateTurns).toBe(1);
+    expect(assassin.timeline.surprised.cases.find(value => value.order === "target-first")?.appliedFeatures)
+      .toEqual(expect.arrayContaining(["passive-assassinate-initiative", "passive-assassinate-ambush", "action-sneak-attack-ranged"]));
+    expect(assassin.timeline.surprised.cases.find(value => value.order === "target-first")?.summary.critMax).toBe(56);
+
+    const countsAsTaken = run(true).candidates.find(candidate => candidate.build.id === assassin.build.id && candidate.policy.sharpshooter === "disabled")!;
+    expect(countsAsTaken.timeline.initiative.surprisedDeniedTurnCountsAsTaken).toBe(true);
+    expect(countsAsTaken.timeline.surprised.cases.find(value => value.order === "target-first")?.appliedFeatures)
+      .not.toContain("passive-assassinate-initiative");
   });
   it("normalizes custom horizons and propagates target HP into optimizer windows", () => {
     const result = optimizeBuild(new InMemoryEngineRepository(fixtureEntities), {
       gameVersion: "Patch 8", level: 5, availableAct: 1, topK: 16,
-      combat: { mode: "ranged", targetHitPoints: 1_000, horizons: [8, 2, 8] },
+      combat: { mode: "ranged", targetHitPoints: 1_000, targetInitiativeModifier: 0, targetDexterityScore: 10, equalTotalAndDexterity: "target-first", surprisedDeniedTurnCountsAsTaken: true, horizons: [8, 2, 8] },
     });
     expect(result.request.combat.horizons).toEqual([1, 2, 3, 5, 8]);
     expect(result.candidates.every(candidate => candidate.windows.horizons.map(horizon => horizon.rounds).join(",") === "1,2,3,5,8")).toBe(true);
@@ -178,6 +236,7 @@ describe("data layer", () => {
   it("matches hand-derived combat-window oracles", () => {
     const result = optimizeBuild(new InMemoryEngineRepository(fixtureEntities), {
       gameVersion: "Patch 8", level: 5, availableAct: 1, topK: 16,
+      combat: { mode: "ranged", targetInitiativeModifier: 0, targetDexterityScore: 10, equalTotalAndDexterity: "target-first", surprisedDeniedTurnCountsAsTaken: true },
     });
     const candidate = (classId: string, sharpshooter: "enabled" | "disabled") =>
       result.candidates.find(value => value.build.classes[0]?.classId === classId
@@ -213,7 +272,7 @@ describe("data layer", () => {
   it("applies target AC, roll mode, mitigation, and Titanstring independently", () => {
     const repository = new InMemoryEngineRepository(fixtureEntities);
     const run = (combat: { targetArmorClass?: number; rollMode?: "normal" | "advantage" | "disadvantage"; target?: { resistances?: "piercing"[] } } = {}) =>
-      optimizeBuild(repository, { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", ...combat }, topK: 16 });
+      optimizeBuild(repository, { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", targetInitiativeModifier: 0, targetDexterityScore: 10, equalTotalAndDexterity: "target-first", surprisedDeniedTurnCountsAsTaken: true, ...combat }, topK: 16 });
     const find = (result: ReturnType<typeof run>, weaponId = "item-longbow-plus-one") =>
       result.candidates.find(candidate => candidate.build.classes[0]?.classId === "class-fighter"
         && candidate.weaponId === weaponId && candidate.policy.sharpshooter === "disabled")!;

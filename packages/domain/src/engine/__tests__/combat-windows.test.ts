@@ -55,5 +55,7 @@ describe("combat window plans", () => {
     expect(() => evaluateCombatPlan({ ...steady, events: [{ ...steady.events[0]!, count: 21 }] }, 10)).toThrow(RangeError);
     expect(() => evaluateCombatPlan({ ...steady, label: " " }, 10)).toThrow(RangeError);
     expect(() => evaluateCombatPlan({ ...steady, resourcesSpent: [{ resource: "", amount: 0, recovery: "short-rest" }] }, 10)).toThrow(RangeError);
+    const twentyAttacks = { ...steady, events: [{ ...steady.events[0]!, count: 20 }] };
+    expect(() => evaluateCombatPlan(repeatCombatPlan(twentyAttacks, 8), 10)).toThrow(/at most 20 attacks/);
   });
 });

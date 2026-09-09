@@ -13,6 +13,10 @@ export const rangedMechanicSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("sharpshooter"), sourceEntityId: z.string().trim().min(1), attackRollPenalty: z.literal(-5), damageBonus: z.literal(10) }).strict(),
   z.object({ kind: z.literal("battle-manoeuvre"), sourceEntityId: z.string().trim().min(1), damageDie: z.object({ count: z.literal(1), sides: z.literal(8) }).strict(), usesPerShortRest: z.literal(4) }).strict(),
   z.object({ kind: z.literal("dread-ambusher"), sourceEntityId: z.string().trim().min(1), firstRoundExtraAttacks: z.literal(1), extraAttackDamage: z.object({ count: z.literal(1), sides: z.literal(8) }).strict() }).strict(),
+  z.object({ kind: z.literal("assassins-alacrity"), sourceEntityId: z.string().trim().min(1), restoredAtCombatStart: z.tuple([z.literal("action"), z.literal("bonus-action")]) }).strict(),
+  z.object({ kind: z.literal("assassinate-initiative"), sourceEntityId: z.string().trim().min(1), appliesAgainst: z.literal("has-not-taken-turn"), rollMode: z.literal("advantage") }).strict(),
+  z.object({ kind: z.literal("assassinate-ambush"), sourceEntityId: z.string().trim().min(1), targetCondition: z.literal("surprised"), successfulAttack: z.literal("critical-hit") }).strict(),
+  z.object({ kind: z.literal("sneak-attack"), sourceEntityId: z.string().trim().min(1), appliesTo: z.literal("ranged-weapon"), minimumClassLevel: z.literal(5), damageDice: z.object({ count: z.literal(3), sides: z.literal(6) }).strict(), qualificationWithAdvantage: z.literal(true), oncePerTurn: z.literal(true) }).strict(),
   z.object({ kind: z.literal("action-surge"), sourceEntityId: z.string().trim().min(1), extraActionsPerShortRest: z.literal(1) }).strict(),
 ]);
 
@@ -34,6 +38,10 @@ export function engineMetadata(entity: GameEntity | undefined): EngineMetadata {
   const result: EngineMetadata = {};
   const availableAct = value["availableAct"];
   if (availableAct === 1 || availableAct === 2 || availableAct === 3) result.availableAct = availableAct;
+  const parentClassId = value["parentClassId"];
+  if (typeof parentClassId === "string" && parentClassId.trim().length > 0) result.parentClassId = parentClassId.trim();
+  const minimumClassLevel = value["minimumClassLevel"];
+  if (typeof minimumClassLevel === "number" && Number.isInteger(minimumClassLevel) && minimumClassLevel >= 1 && minimumClassLevel <= 12) result.minimumClassLevel = minimumClassLevel;
   const slot = value["slot"];
   if (typeof slot === "string" && slots.has(slot)) result.slot = slot as NonNullable<EngineMetadata["slot"]>;
   const handedness = value["handedness"];
@@ -63,6 +71,6 @@ export function engineMetadata(entity: GameEntity | undefined): EngineMetadata {
     });
   }
   const ranged = parseRangedMechanic(value["ranged"]);
-  if (ranged) result.ranged = ranged;
+  if (ranged && ranged.sourceEntityId === entity?.id) result.ranged = ranged;
   return result;
 }

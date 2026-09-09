@@ -52,13 +52,28 @@ function evaluatedWindow(label: string, turns = 1) {
     resourcesSpent: [{ resource: "Action Surge", amount: 1, recovery: "short-rest" as const }],
   };
 }
+const turn = { round: 1, targetSurprised: false, targetHadTakenTurn: false, events: [{ kind: "ranged-attack" as const, source: "ordinary" as const, count: 2 }] };
+const candidateFirstCase = { order: "candidate-first" as const, candidateTurns: 1 as const, turnsBeforeTargetFirstActionableTurn: [turn], appliedFeatures: ["passive-archery"], initiativePairs: 15, weight: 15 / 16, summary: damage, probabilityKill: 0.6 };
+const targetFirstCase = { order: "target-first" as const, candidateTurns: 0 as const, turnsBeforeTargetFirstActionableTurn: [], appliedFeatures: [], initiativePairs: 1, weight: 1 / 16, summary: { ...damage, expected: 0, minimumOnHit: 0, nonCritMax: 0, critMax: 0, variance: 0, stddev: 0, p10: 0, median: 0, p90: 0, probabilityZero: 1 }, probabilityKill: 0 };
+const timeline = {
+  metric: "probability-kill-before-target-first-actionable-turn" as const,
+  initiative: { die: "d4" as const, candidateModifier: 3, candidateDexterityScore: 16, targetModifier: 1, targetDexterityScore: 14, equalTotalAndDexterity: "target-first" as const, surprisedDeniedTurnCountsAsTaken: true },
+  noSurprise: { cases: [targetFirstCase, candidateFirstCase], probabilityKillBeforeTargetFirstActionableTurn: 0.5625 },
+  surprised: { cases: [
+    { ...candidateFirstCase, candidateTurns: 2 as const, turnsBeforeTargetFirstActionableTurn: [
+      { ...turn, targetSurprised: true },
+      { ...turn, round: 2 as const, targetHadTakenTurn: true },
+    ], initiativePairs: 15, weight: 15 / 16 },
+    { ...candidateFirstCase, order: "target-first" as const, turnsBeforeTargetFirstActionableTurn: [{ ...turn, targetSurprised: true, targetHadTakenTurn: true }], initiativePairs: 1, weight: 1 / 16 },
+  ], probabilityKillBeforeTargetFirstActionableTurn: 0.6 },
+};
 const report = optimizationReportSchema.parse({
   kind: "optimization",
   title: "Curated result",
   summary: "Exact within scope.",
   generatedAt: "2026-01-01T00:00:00.000Z",
   result: {
-    request: { gameVersion: "Patch 8", level: 5, availableAct: 1 },
+    request: { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", targetInitiativeModifier: 1, targetDexterityScore: 14, equalTotalAndDexterity: "target-first", surprisedDeniedTurnCountsAsTaken: true } },
     candidates: [{
       rank: 1,
       build,
@@ -75,12 +90,13 @@ const report = optimizationReportSchema.parse({
           return { rounds, window: evaluatedWindow(`${rounds}-round total`, rounds) };
         }),
       },
+      timeline,
       policy: { archery: "always", extraAttack: "always", sharpshooter: "enabled" },
       provenance,
     }],
-    validation: { generatedCandidates: 1, validCandidates: 1, rejectedCandidates: 0, rejectionReasons: {} },
-    ranking: { window: "nova", metric: "expectedDamage", tieBreakers: ["steadyState.expectedDamage", "build.id", "sharpshooterPolicy"] }, bounds: { evaluatedCandidates: 1, candidateSetSize: 1, returnedCandidates: 1, searchScope: "curated-l5-act1-ranged-windows-v2", exactWithinDeclaredScope: true, globallyOptimal: false },
-    unsupportedMechanics: ["surprise"],
+    validation: { generatedCandidates: 24, validCandidates: 24, rejectedCandidates: 0, rejectionReasons: {} },
+    ranking: { window: "nova", metric: "expectedDamage", tieBreakers: ["steadyState.expectedDamage", "build.id", "sharpshooterPolicy"] }, bounds: { evaluatedCandidates: 24, candidateSetSize: 24, returnedCandidates: 1, searchScope: "curated-l5-act1-ranged-timeline-v3", exactWithinDeclaredScope: true, globallyOptimal: false },
+    unsupportedMechanics: ["setup effects"],
     guarantee: "Every declared candidate was evaluated.",
   },
 });
@@ -109,7 +125,16 @@ describe("OptimizationReportCard", () => {
     expect(view.node.textContent).toContain("Target HP50");
     expect(view.node.textContent).toContain("Nova");
     expect(view.node.textContent).toContain("Action Surge ×1 (short-rest)");
-    expect(view.node.textContent).toContain("Surprised first round: unsupported");
+    expect(view.node.textContent).toContain("Before target's first actionable turn");
+    expect(view.node.textContent).toContain("Initiative: d4 + 3");
+    expect(view.node.textContent).toContain("No surprise · weighted kill 56.3%");
+    expect(view.node.textContent).toContain("Surprised · weighted kill 60.0%");
+    expect(view.node.textContent).toContain("15/16 (93.8%)");
+    expect(view.node.textContent).toContain("Equal total and Dexterity: target-first");
+    expect(view.node.textContent).toContain("A surprised denied turn counts as taken");
+    expect(view.node.textContent).toContain("ordinary ×2");
+    expect(view.node.textContent).toContain("Archery");
+    expect(view.node.textContent).not.toContain("passive-archery");
     expect(view.node.textContent).toContain("Setup: unsupported");
     view.unmount();
   });

@@ -35,7 +35,20 @@ export function validateBuild(build: Build, repository: EngineRepository, option
     checkReference(entry.classId, "class", ["classes", index, "classId"]);
     if (classIds.has(entry.classId)) issues.push(issue("duplicate-class", `Class ${entry.classId} is listed more than once`, ["classes", index, "classId"], entry.classId));
     classIds.add(entry.classId);
-    if (entry.subclassId) checkReference(entry.subclassId, "subclass", ["classes", index, "subclassId"]);
+    if (entry.subclassId) {
+      const path = ["classes", index, "subclassId"] as Array<string | number>;
+      checkReference(entry.subclassId, "subclass", path);
+      const subclass = repository.getEntity(entry.subclassId);
+      if (subclass?.kind === "subclass") {
+        const metadata = engineMetadata(subclass);
+        if (metadata.parentClassId !== entry.classId) {
+          issues.push(issue("subclass-parent-mismatch", `${entry.subclassId} is not a subclass of ${entry.classId}`, path, entry.subclassId));
+        }
+        if (metadata.minimumClassLevel === undefined || entry.level < metadata.minimumClassLevel) {
+          issues.push(issue("subclass-level-locked", `${entry.subclassId} requires at least ${metadata.minimumClassLevel ?? "a declared"} ${entry.classId} level`, path, entry.subclassId));
+        }
+      }
+    }
   });
   build.feats.forEach((id, index) => checkReference(id, "feat", ["feats", index]));
   build.preparedSpells.forEach((entry, index) => {

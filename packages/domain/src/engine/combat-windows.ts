@@ -1,8 +1,8 @@
 import { evaluatedWindowSchema, type AttackInput, type EvaluatedDamageWindow } from "../schemas/index.js";
-import { calculateAttackPmf, convolvePmfs, repeatAttacks, summarizePmf, type AttackPmfResult, type IntegerPmf } from "./attack-pmf.js";
+import { calculateAttackPmf, convolvePmfs, MAX_REPEATED_ATTACKS, repeatAttacks, summarizePmf, type AttackPmfResult, type IntegerPmf } from "./attack-pmf.js";
 
 export type CombatPlanEvent = {
-  source: "ordinary" | "dread-ambusher";
+  source: "ordinary" | "dread-ambusher" | "sneak-attack";
   count: number;
   attack: AttackInput;
 };
@@ -56,6 +56,10 @@ export function evaluateCombatPlan(plan: CombatPlan, targetHitPoints: number): E
   }
   if (plan.events.length === 0) {
     throw new RangeError("combat plan must contain at least one event");
+  }
+  const attackCount = plan.events.reduce((total, event) => total + event.count, 0);
+  if (!Number.isSafeInteger(attackCount) || attackCount > MAX_REPEATED_ATTACKS) {
+    throw new RangeError(`combat plan must contain at most ${MAX_REPEATED_ATTACKS} attacks`);
   }
   for (const spend of plan.resourcesSpent) {
     if (spend.resource.trim().length === 0 || !Number.isInteger(spend.amount) || spend.amount < 1) {

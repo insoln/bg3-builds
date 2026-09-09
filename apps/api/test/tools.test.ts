@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Build, GameEntity } from "@bg3-builds/domain";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FixtureGameDataReader } from "../src/runtime-reader.js";
 import { executeGameTool, gameTools } from "../src/tools.js";
 
@@ -89,9 +89,23 @@ describe("runtime game tools", () => {
   it("exposes and forwards optimizer window inputs", async () => {
     const optimize = gameTools.find((tool) => tool.name === "optimize_build");
     const requestSchema = (optimize?.input_schema as { properties: { request: { properties: { combat: { properties: Record<string, unknown> } } } } }).properties.request;
-    expect(Object.keys(requestSchema.properties.combat.properties)).toEqual(expect.arrayContaining(["targetHitPoints", "horizons"]));
+    expect(Object.keys(requestSchema.properties.combat.properties)).toEqual(expect.arrayContaining([
+      "targetHitPoints",
+      "horizons",
+      "targetInitiativeModifier",
+      "targetDexterityScore",
+      "equalTotalAndDexterity",
+      "surprisedDeniedTurnCountsAsTaken",
+    ]));
+    expect(requestSchema.properties.combat.required).toEqual(expect.arrayContaining([
+      "targetInitiativeModifier",
+      "targetDexterityScore",
+      "equalTotalAndDexterity",
+      "surprisedDeniedTurnCountsAsTaken",
+    ]));
+    expect(optimize?.description).toContain("instead of inventing conversational defaults");
 
-    const input = { request: { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", targetHitPoints: 75, horizons: [6] } } };
+    const input = { request: { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", targetHitPoints: 75, targetInitiativeModifier: 2, targetDexterityScore: 14, equalTotalAndDexterity: "target-first", surprisedDeniedTurnCountsAsTaken: true, horizons: [6] } } };
     const response = await executeGameTool({
       ...reader,
       optimizeBuild: async request => ({ request } as never),
@@ -101,6 +115,23 @@ describe("runtime game tools", () => {
 
     const invalid = await executeGameTool(reader, toolUse("optimize_build", { request: { gameVersion: "Patch 8", level: 5, availableAct: 1, combat: { mode: "ranged", targetHitPoints: 0 } } }));
     expect(invalid.is_error).toBe(true);
+
+    const requiredTimelineInput = {
+      targetInitiativeModifier: 2,
+      targetDexterityScore: 14,
+      equalTotalAndDexterity: "target-first",
+      surprisedDeniedTurnCountsAsTaken: true,
+    } as const;
+    for (const field of Object.keys(requiredTimelineInput) as Array<keyof typeof requiredTimelineInput>) {
+      const optimizeBuild = vi.fn();
+      const combat = { mode: "ranged", ...requiredTimelineInput };
+      delete (combat as Partial<typeof combat>)[field];
+      const missing = await executeGameTool({ ...reader, optimizeBuild }, toolUse("optimize_build", {
+        request: { gameVersion: "Patch 8", level: 5, availableAct: 1, combat },
+      }));
+      expect(missing.is_error, field).toBe(true);
+      expect(optimizeBuild, field).not.toHaveBeenCalled();
+    }
   });
 
   it("exposes closed, explicit ability score properties in build tool schemas", () => {

@@ -62,19 +62,27 @@ body-parsing clients read the same shape.
   but is not wired into the running API yet.
 - `better-sqlite3` needs a native build (`pnpm rebuild better-sqlite3`); until
   it is compiled the two SQLite-backed data tests fail to load their binding.
-- The exact ranged optimizer exhaustively ranks only its declared Patch 8,
-  Level 5, Act 1 scope: Fighter/Battle Master or Ranger/Gloom Stalker, four
-  curated bows, and Sharpshooter enabled/disabled. It reports named single-
-  attack, opener, Nova, steady-state, and 1/2/3/5/custom-N exact PMF windows,
-  ranked by Nova expected damage—not a global optimum. HP-threshold probability
-  means kill by the end of the named window against the same continuously
-  available target; attacks do not stop or retarget after an earlier kill.
-- Window schedules explicitly list Action Surge (short-rest recovery) or Dread
-  Ambusher (once per encounter). Battle Master superiority-die damage remains
-  excluded until its successful-hit resource consumption is modeled exactly.
-- Surprise, setup effects, Executioner/guaranteed critical state, multi-target/
-  AoE behavior, Arrow of Many Targets, and full DRS/DR event graphs remain
-  unsupported and are reported as limitations rather than estimated.
+- The v3 exact ranged optimizer exhaustively ranks only its declared Patch 8,
+  Level 5, Act 1 scope: Fighter/Battle Master, Ranger/Gloom Stalker, or
+  Rogue/Assassin; four curated bows; and Sharpshooter enabled/disabled (24
+  candidates). It reports named single-attack, opener, Nova, steady-state, and
+  1/2/3/5/custom-N exact PMF windows, ranked by Nova expected damage—not a global
+  optimum. Static window probabilities are labeled **Kill by end** and assume the
+  same continuously available target; attacks do not stop or retarget after an
+  earlier kill.
+- The separate **Before target's first actionable turn** metric enumerates all 16
+  equally likely candidate/target d4 initiative pairs. Target initiative modifier,
+  target Dexterity, the equal-total-and-Dexterity tie result, and whether a
+  surprise-denied turn counts as taken are explicit inputs: conversational use
+  must ask when they are missing or ambiguous, never invent defaults. No-surprise
+  and surprised results are separate weighted branches.
+- Window and timeline schedules explicitly list Action Surge (short-rest), Dread
+  Ambusher (encounter), and Assassin features when applicable. Battle Master
+  superiority-die damage remains excluded until successful-hit resource use is
+  modeled exactly.
+- Setup effects, Executioner/other guaranteed-critical state, multi-target/AoE
+  behavior, Arrow of Many Targets, and full DRS/DR event graphs remain unsupported
+  and are reported as limitations rather than estimated.
 
 See `docs/architecture.md`, `docs/data-sources.md`, and
 `docs/fixture-coverage.md` for boundaries, provenance rules, and coverage.

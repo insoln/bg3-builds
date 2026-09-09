@@ -6,6 +6,7 @@ const source = { source: "test", gameVersion: "1" };
 const entity = (id: string, kind: GameEntity["kind"], tags: string[] = [], engine?: Record<string, unknown>): GameEntity => ({ id, slug: id, kind, text: { name: id }, tags, source, ...(engine ? { metadata: { engine } } : {}) });
 const entities = [
   entity("fighter", "class", ["martial", "frontliner", "striker"]), entity("wizard", "class", ["caster", "controller"]),
+  entity("battle-master", "subclass", [], { parentClassId: "fighter", minimumClassLevel: 3 }),
   entity("human", "race"), entity("elf", "race"),
   entity("greatsword", "item", [], { slot: "melee-main-hand", handedness: "two-handed", attackBonus: 1 }),
   entity("shield", "item", ["shield"], { slot: "melee-off-hand", shield: true, armorClass: 2 }),
@@ -20,6 +21,8 @@ describe("entity schema", () => {
   it("parses strict ranged mechanics", () => {
     expect(parseRangedMechanic({ kind: "weapon", sourceEntityId: "bow", weaponType: "longbow", baseDamage: { count: 1, sides: 8, flat: 1 }, damageType: "piercing", attackAbility: "dexterity", strengthDamage: { ability: "strength", minimumModifier: 1 } })).toMatchObject({ kind: "weapon", baseDamage: { count: 1, sides: 8, flat: 1 } });
     expect(parseRangedMechanic({ kind: "sharpshooter", sourceEntityId: "feat", attackRollPenalty: -4, damageBonus: 10 })).toBeUndefined();
+    expect(parseRangedMechanic({ kind: "sneak-attack", sourceEntityId: "sneak", appliesTo: "ranged-weapon", minimumClassLevel: 5, damageDice: { count: 3, sides: 6 }, qualificationWithAdvantage: true, oncePerTurn: true })).toMatchObject({ kind: "sneak-attack", damageDice: { count: 3, sides: 6 } });
+    expect(parseRangedMechanic({ kind: "assassinate-ambush", sourceEntityId: "ambush", targetCondition: "surprised", successfulAttack: "critical-hit", guessed: true })).toBeUndefined();
     expect(engineMetadata(entity("bow", "item", [], { ranged: { kind: "weapon", sourceEntityId: "bow", weaponType: "longbow", baseDamage: { count: 1, sides: 8 }, damageType: "piercing", attackAbility: "dexterity", unexpected: true } })).ranged).toBeUndefined();
   });
   it("validates optional icon URLs", () => {
@@ -66,6 +69,13 @@ describe("validation", () => {
     const actRepository = new InMemoryEngineRepository([...entities, lateRace, lateFeat]);
     const actFiltered = validateBuild(baseBuild({ raceId: "late-race", feats: ["late-feat"] }), actRepository, { availableAct: 2 });
     expect(actFiltered.issues.filter((entry) => entry.code === "act-unavailable").map((entry) => entry.entityId)).toEqual(["late-race", "late-feat"]);
+  });
+  it("checks subclass parent class and unlock level", () => {
+    expect(validateBuild(baseBuild({ level: 3, classes: [{ classId: "fighter", subclassId: "battle-master", level: 3 }] }), repository).valid).toBe(true);
+    const wrongParent = validateBuild(baseBuild({ classes: [{ classId: "wizard", subclassId: "battle-master", level: 4 }] }), repository);
+    expect(wrongParent.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "subclass-parent-mismatch", entityId: "battle-master" })]));
+    const tooEarly = validateBuild(baseBuild({ level: 2, classes: [{ classId: "fighter", subclassId: "battle-master", level: 2 }] }), repository);
+    expect(tooEarly.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "subclass-level-locked", entityId: "battle-master" })]));
   });
   it("checks slots and two-hand/shield conflicts while allowing prepared concentration spells", () => {
     const result = validateBuild(baseBuild({ equipment: [{ slot: "melee-main-hand", itemId: "greatsword" }, { slot: "melee-off-hand", itemId: "shield" }], preparedSpells: [{ spellId: "focus-a", alwaysPrepared: false }, { spellId: "focus-b", alwaysPrepared: false }] }), repository);

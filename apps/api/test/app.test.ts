@@ -7,7 +7,7 @@ import { InMemoryConversationStore } from "../src/store.js";
 const provider: MessageProvider = { complete: vi.fn(async (_messages, sink) => { sink.text("Hello"); return [{ role: "assistant" as const, content: [{ type: "text" as const, text: "Hello" }] }]; }) };
 const report = optimizationReportSchema.parse({
  kind: "optimization", title: "Act 1 ranged Top 1", summary: "Bounded result.",
- result: optimizeBuild(new InMemoryEngineRepository(fixtureEntities), { gameVersion: "Patch 8", level: 5, availableAct: 1, topK: 1 }),
+ result: optimizeBuild(new InMemoryEngineRepository(fixtureEntities), { gameVersion: "Patch 8", level: 5, availableAct: 1, topK: 1, combat: { mode: "ranged", targetInitiativeModifier: 0, targetDexterityScore: 10, equalTotalAndDexterity: "target-first", surprisedDeniedTurnCountsAsTaken: true } }),
  generatedAt: "2026-09-08T00:00:00.000Z",
 });
 describe("API", () => {

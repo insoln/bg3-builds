@@ -25,7 +25,7 @@ export type AttackPmfResult = {
 };
 
 const one = new Map([[0, 1]]);
-const MAX_REPEATED_ATTACKS = 20;
+export const MAX_REPEATED_ATTACKS = 20;
 const MAX_REPEATED_DAMAGE_SUPPORT = 12_800;
 const MAX_PUBLIC_PMF_ENTRIES = 12_801;
 const MAX_PUBLIC_CONVOLUTION_PAIRS = 1_000_000;

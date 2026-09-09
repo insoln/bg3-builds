@@ -44,18 +44,19 @@ const classes: readonly FixtureDefinition[] = [
 ];
 
 const subclasses: readonly FixtureDefinition[] = [
-  { id: "subclass-berserker", slug: "berserker", kind: "subclass", name: "Berserker", wikiTitle: "Berserker", tags: ["melee", "damage", "act-1"] },
-  { id: "subclass-college-of-swords", slug: "college-of-swords", kind: "subclass", name: "College of Swords", wikiTitle: "College of Swords", tags: ["ranged", "melee", "control", "act-1"] },
-  { id: "subclass-light-domain", slug: "light-domain", kind: "subclass", name: "Light Domain", wikiTitle: "Light Domain", tags: ["damage", "support", "act-1"] },
-  { id: "subclass-circle-of-the-moon", slug: "circle-of-the-moon", kind: "subclass", name: "Circle of the Moon", wikiTitle: "Circle of the Moon", tags: ["tank", "control", "act-1"] },
-  { id: "subclass-battle-master", slug: "battle-master", kind: "subclass", name: "Battle Master", wikiTitle: "Battle Master", tags: ["melee", "ranged", "damage", "control", "act-1"], engine: { availableAct: 1, ranged: { kind: "battle-manoeuvre", sourceEntityId: "subclass-battle-master", damageDie: { count: 1, sides: 8 }, usesPerShortRest: 4 } } },
-  { id: "subclass-way-of-the-open-hand", slug: "way-of-the-open-hand", kind: "subclass", name: "Way of the Open Hand", wikiTitle: "Way of the Open Hand", tags: ["melee", "damage", "control", "act-1"] },
-  { id: "subclass-oath-of-the-ancients", slug: "oath-of-the-ancients", kind: "subclass", name: "Oath of the Ancients", wikiTitle: "Oath of the Ancients", tags: ["tank", "support", "act-1"] },
-  { id: "subclass-gloom-stalker", slug: "gloom-stalker", kind: "subclass", name: "Gloom Stalker", wikiTitle: "Gloom Stalker", tags: ["ranged", "damage", "act-1"], engine: { availableAct: 1, ranged: { kind: "dread-ambusher", sourceEntityId: "subclass-gloom-stalker", firstRoundExtraAttacks: 1, extraAttackDamage: { count: 1, sides: 8 } } } },
-  { id: "subclass-thief", slug: "thief", kind: "subclass", name: "Thief", wikiTitle: "Thief", tags: ["ranged", "melee", "damage", "act-1"] },
-  { id: "subclass-draconic-bloodline", slug: "draconic-bloodline", kind: "subclass", name: "Draconic Bloodline", wikiTitle: "Draconic Bloodline", tags: ["damage", "tank", "act-1"] },
-  { id: "subclass-the-fiend", slug: "the-fiend", kind: "subclass", name: "The Fiend", wikiTitle: "The Fiend", tags: ["damage", "control", "act-1"] },
-  { id: "subclass-school-of-divination", slug: "school-of-divination", kind: "subclass", name: "School of Divination", wikiTitle: "Divination School", tags: ["control", "support", "act-1"] },
+  { id: "subclass-berserker", slug: "berserker", kind: "subclass", name: "Berserker", wikiTitle: "Berserker", tags: ["melee", "damage", "act-1"], engine: { parentClassId: "class-barbarian", minimumClassLevel: 3 } },
+  { id: "subclass-college-of-swords", slug: "college-of-swords", kind: "subclass", name: "College of Swords", wikiTitle: "College of Swords", tags: ["ranged", "melee", "control", "act-1"], engine: { parentClassId: "class-bard", minimumClassLevel: 3 } },
+  { id: "subclass-light-domain", slug: "light-domain", kind: "subclass", name: "Light Domain", wikiTitle: "Light Domain", tags: ["damage", "support", "act-1"], engine: { parentClassId: "class-cleric", minimumClassLevel: 1 } },
+  { id: "subclass-circle-of-the-moon", slug: "circle-of-the-moon", kind: "subclass", name: "Circle of the Moon", wikiTitle: "Circle of the Moon", tags: ["tank", "control", "act-1"], engine: { parentClassId: "class-druid", minimumClassLevel: 2 } },
+  { id: "subclass-battle-master", slug: "battle-master", kind: "subclass", name: "Battle Master", wikiTitle: "Battle Master", tags: ["melee", "ranged", "damage", "control", "act-1"], engine: { availableAct: 1, parentClassId: "class-fighter", minimumClassLevel: 3, ranged: { kind: "battle-manoeuvre", sourceEntityId: "subclass-battle-master", damageDie: { count: 1, sides: 8 }, usesPerShortRest: 4 } } },
+  { id: "subclass-way-of-the-open-hand", slug: "way-of-the-open-hand", kind: "subclass", name: "Way of the Open Hand", wikiTitle: "Way of the Open Hand", tags: ["melee", "damage", "control", "act-1"], engine: { parentClassId: "class-monk", minimumClassLevel: 3 } },
+  { id: "subclass-oath-of-the-ancients", slug: "oath-of-the-ancients", kind: "subclass", name: "Oath of the Ancients", wikiTitle: "Oath of the Ancients", tags: ["tank", "support", "act-1"], engine: { parentClassId: "class-paladin", minimumClassLevel: 3 } },
+  { id: "subclass-gloom-stalker", slug: "gloom-stalker", kind: "subclass", name: "Gloom Stalker", wikiTitle: "Gloom Stalker", tags: ["ranged", "damage", "initiative", "act-1"], engine: { availableAct: 1, parentClassId: "class-ranger", minimumClassLevel: 3, initiative: 3, ranged: { kind: "dread-ambusher", sourceEntityId: "subclass-gloom-stalker", firstRoundExtraAttacks: 1, extraAttackDamage: { count: 1, sides: 8 } } } },
+  { id: "subclass-thief", slug: "thief", kind: "subclass", name: "Thief", wikiTitle: "Thief", tags: ["ranged", "melee", "damage", "act-1"], engine: { parentClassId: "class-rogue", minimumClassLevel: 3 } },
+  { id: "subclass-assassin", slug: "assassin", kind: "subclass", name: "Assassin", wikiTitle: "Assassin", tags: ["ranged", "melee", "damage", "initiative", "act-1"], engine: { parentClassId: "class-rogue", minimumClassLevel: 3 } },
+  { id: "subclass-draconic-bloodline", slug: "draconic-bloodline", kind: "subclass", name: "Draconic Bloodline", wikiTitle: "Draconic Bloodline", tags: ["damage", "tank", "act-1"], engine: { parentClassId: "class-sorcerer", minimumClassLevel: 1 } },
+  { id: "subclass-the-fiend", slug: "the-fiend", kind: "subclass", name: "The Fiend", wikiTitle: "The Fiend", tags: ["damage", "control", "act-1"], engine: { parentClassId: "class-warlock", minimumClassLevel: 1 } },
+  { id: "subclass-school-of-divination", slug: "school-of-divination", kind: "subclass", name: "School of Divination", wikiTitle: "Divination School", tags: ["control", "support", "act-1"], engine: { parentClassId: "class-wizard", minimumClassLevel: 2 } },
 ];
 
 const races: readonly FixtureDefinition[] = [
@@ -102,6 +103,10 @@ const spellsAndActions: readonly FixtureDefinition[] = [
   { id: "passive-extra-attack", slug: "extra-attack", kind: "passive", name: "Extra Attack", wikiTitle: "Extra_Attack", tags: ["ranged", "melee", "damage", "act-1"], engine: { availableAct: 1, ranged: { kind: "extra-attack", sourceEntityId: "passive-extra-attack", minimumClassLevel: 5, attacksPerAction: 2 } } },
   { id: "action-flurry-of-blows", slug: "flurry-of-blows", kind: "action", name: "Flurry of Blows", wikiTitle: "Flurry of Blows", tags: ["melee", "damage", "act-1"] },
   { id: "action-sneak-attack", slug: "sneak-attack", kind: "action", name: "Sneak Attack", wikiTitle: "Sneak Attack", tags: ["ranged", "melee", "damage", "act-1"] },
+  { id: "action-sneak-attack-ranged", slug: "sneak-attack-ranged", kind: "action", name: "Sneak Attack (Ranged)", wikiTitle: "Sneak Attack (Ranged)", tags: ["ranged", "damage", "act-1"], engine: { ranged: { kind: "sneak-attack", sourceEntityId: "action-sneak-attack-ranged", appliesTo: "ranged-weapon", minimumClassLevel: 5, damageDice: { count: 3, sides: 6 }, qualificationWithAdvantage: true, oncePerTurn: true } } },
+  { id: "passive-assassins-alacrity", slug: "assassins-alacrity", kind: "passive", name: "Assassin's Alacrity", wikiTitle: "Assassin's Alacrity", tags: ["initiative", "action-economy", "act-1"], engine: { ranged: { kind: "assassins-alacrity", sourceEntityId: "passive-assassins-alacrity", restoredAtCombatStart: ["action", "bonus-action"] } } },
+  { id: "passive-assassinate-initiative", slug: "assassinate-initiative", kind: "passive", name: "Assassinate: Initiative", wikiTitle: "Assassinate: Initiative", tags: ["initiative", "ranged", "melee", "act-1"], engine: { ranged: { kind: "assassinate-initiative", sourceEntityId: "passive-assassinate-initiative", appliesAgainst: "has-not-taken-turn", rollMode: "advantage" } } },
+  { id: "passive-assassinate-ambush", slug: "assassinate-ambush", kind: "passive", name: "Assassinate: Ambush", wikiTitle: "Assassinate: Ambush", tags: ["surprise", "critical-hit", "ranged", "melee", "act-1"], engine: { ranged: { kind: "assassinate-ambush", sourceEntityId: "passive-assassinate-ambush", targetCondition: "surprised", successfulAttack: "critical-hit" } } },
   { id: "passive-eldritch-invocation", slug: "eldritch-invocation", kind: "passive", name: "Eldritch Invocation", wikiTitle: "Eldritch Invocation", tags: ["caster", "ranged", "utility", "act-1"] },
 ];
 
