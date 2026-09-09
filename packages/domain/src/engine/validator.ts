@@ -15,20 +15,46 @@ export function validateBuild(build: Build, repository: EngineRepository, option
   }
   build = parsed.data;
 
+  const checkAvailability = (id: string, path: Array<string | number>): void => {
+    const availableAct = engineMetadata(repository.getEntity(id)).availableAct;
+    if (options.availableAct !== undefined && availableAct !== undefined && availableAct > options.availableAct) {
+      issues.push(issue("act-unavailable", `${id} is unavailable in Act ${options.availableAct}`, path, id));
+    }
+  };
   const checkReference = (id: string, expectedKind: EntityKind, path: Array<string | number>): void => {
     const entity = repository.getEntity(id);
     if (!entity) issues.push(issue("unknown-entity", `Unknown ${expectedKind}: ${id}`, path, id));
     else if (entity.kind !== expectedKind) issues.push(issue("wrong-entity-kind", `${id} is ${entity.kind}, expected ${expectedKind}`, path, id));
+    else checkAvailability(id, path);
   };
   checkReference(build.raceId, "race", ["raceId"]);
   if (build.subraceId) checkReference(build.subraceId, "subrace", ["subraceId"]);
   if (build.backgroundId) checkReference(build.backgroundId, "background", ["backgroundId"]);
+  const classIds = new Set<string>();
   build.classes.forEach((entry, index) => {
     checkReference(entry.classId, "class", ["classes", index, "classId"]);
-    if (entry.subclassId) checkReference(entry.subclassId, "subclass", ["classes", index, "subclassId"]);
+    if (classIds.has(entry.classId)) issues.push(issue("duplicate-class", `Class ${entry.classId} is listed more than once`, ["classes", index, "classId"], entry.classId));
+    classIds.add(entry.classId);
+    if (entry.subclassId) {
+      const path = ["classes", index, "subclassId"] as Array<string | number>;
+      checkReference(entry.subclassId, "subclass", path);
+      const subclass = repository.getEntity(entry.subclassId);
+      if (subclass?.kind === "subclass") {
+        const metadata = engineMetadata(subclass);
+        if (metadata.parentClassId !== entry.classId) {
+          issues.push(issue("subclass-parent-mismatch", `${entry.subclassId} is not a subclass of ${entry.classId}`, path, entry.subclassId));
+        }
+        if (metadata.minimumClassLevel === undefined || entry.level < metadata.minimumClassLevel) {
+          issues.push(issue("subclass-level-locked", `${entry.subclassId} requires at least ${metadata.minimumClassLevel ?? "a declared"} ${entry.classId} level`, path, entry.subclassId));
+        }
+      }
+    }
   });
   build.feats.forEach((id, index) => checkReference(id, "feat", ["feats", index]));
-  build.preparedSpells.forEach((entry, index) => checkReference(entry.spellId, "spell", ["preparedSpells", index, "spellId"]));
+  build.preparedSpells.forEach((entry, index) => {
+    checkReference(entry.spellId, "spell", ["preparedSpells", index, "spellId"]);
+    if (entry.sourceClassId) checkReference(entry.sourceClassId, "class", ["preparedSpells", index, "sourceClassId"]);
+  });
 
   const levelSum = build.classes.reduce((sum, entry) => sum + entry.level, 0);
   trace.push({ step: "class-levels", message: "Compared class level sum with character level", input: { levelSum, level: build.level }, output: levelSum === build.level });

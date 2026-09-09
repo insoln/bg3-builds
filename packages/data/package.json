@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@bg3-builds/domain": "workspace:*",
-    "better-sqlite3": "^12.4.1",
+    "better-sqlite3": "^13.0.3",
     "cheerio": "^1.1.2",
     "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "^5.3.1",

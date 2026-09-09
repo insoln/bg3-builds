@@ -1,10 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { GameDataReader } from "./tools.js";
-import { executeGameTool, gameTools } from "./tools.js";
+import {
+  optimizationReportSchema,
+  optimizerResultSchema,
+  type OptimizationReport,
+} from "@bg3-builds/domain";
+import { executeGameTool, gameTools, type GameDataReader } from "./tools.js";
 
 export interface StreamSink {
   text(delta: string): void;
   status(status: "working" | "tool" | "paused"): void;
+  report(report: OptimizationReport): void;
 }
 
 export interface MessageProvider {
@@ -45,7 +50,7 @@ export class AnthropicMessageProvider implements MessageProvider {
         max_tokens: 64_000,
         thinking: { type: "adaptive" },
         output_config: { effort: "high" },
-        system: "You are a BG3 build expert. Use the read-only tools for game facts and respond in readable Markdown. When first mentioning a class, subclass, race, feat, spell, item, action, or passive returned by a tool, link its display name using the exact source.url from that tool result when present. You may include a small linked icon only when the tool result contains an exact iconUrl. Never construct or guess a URL from a name, ID, or slug; use ordinary text when the tool result has no URL. Link availability must not change the factual answer. Clearly distinguish unavailable data from facts. Never expose internal reasoning or tool payloads.",
+        system: "You are a BG3 build expert. For requests asking for the best, strongest, optimal, or min-max build, call optimize_build rather than claiming one from prose; state its bounded scope and limitations. Before calling optimize_build, obtain explicit values for targetInitiativeModifier, targetDexterityScore, equalTotalAndDexterity, and surprisedDeniedTurnCountsAsTaken whenever the user is asking about initiative-relative timelines. If any is missing or ambiguous, ask a concise clarifying question; never invent defaults in conversation. Use the read-only tools for game facts and respond in readable Markdown. When first mentioning a class, subclass, race, feat, spell, item, action, or passive returned by a tool, link its display name using the exact source.url from that tool result when present. You may include a small linked icon only when the tool result contains an exact iconUrl. Never construct or guess a URL from a name, ID, or slug; use ordinary text when the tool result has no URL. Link availability must not change the factual answer. Clearly distinguish unavailable data from facts. Numerical damage, durability, probability, ranking, optimization, initiative order, candidate turns, event schedules, applied features, and conditional or weighted kill probabilities must come directly from deterministic tool output; never calculate, extrapolate, regroup, or invent them in prose. The tool's no-surprise and surprised timeline branches are distinct and must not be combined. If a requested mechanic is unsupported by the tools (including setup effects, guaranteed critical state, Battle Master superiority-die consumption, AoE, or Arrow of Many Targets), stop at a clear limitation and do not offer a hypothetical numerical model unless the user explicitly asks for a labeled non-game hypothetical. Never expose internal reasoning or tool payloads.",
         tools: gameTools,
         messages,
       });
@@ -74,12 +79,47 @@ export class AnthropicMessageProvider implements MessageProvider {
       if (uses.length === 0) throw new Error("Claude requested tools without any tool calls");
       sink.status("tool");
       const results = await Promise.all(uses.map((use) => executeGameTool(this.reader, use, signal)));
+      for (const report of optimizationReports(uses, results)) sink.report(report);
       const toolTurn: Anthropic.MessageParam = { role: "user", content: results };
       generated.push(toolTurn);
       messages.push(toolTurn);
     }
     throw new Error("Claude exceeded the tool iteration limit");
   }
+}
+
+function parseJson(value: string): unknown | undefined {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function optimizationReports(
+  uses: Anthropic.ToolUseBlock[],
+  results: Anthropic.ToolResultBlockParam[],
+): OptimizationReport[] {
+  const reports: OptimizationReport[] = [];
+
+  for (const [index, use] of uses.entries()) {
+    if (use.name !== "optimize_build") continue;
+    const result = results[index];
+    if (result?.is_error || typeof result?.content !== "string") continue;
+
+    const parsed = optimizerResultSchema.safeParse(parseJson(result.content));
+    if (!parsed.success) continue;
+
+    reports.push(optimizationReportSchema.parse({
+      kind: "optimization",
+      title: `Act 1 ranged Nova Top ${parsed.data.bounds.returnedCandidates}: ${parsed.data.candidates[0]!.build.name}`,
+      summary: `Exactly evaluated all ${parsed.data.bounds.evaluatedCandidates} legal candidates in the declared curated scope and ranked them by Nova expected damage. Opener, steady-state, and requested N-round windows are reported separately. This is not a global optimum.`,
+      result: parsed.data,
+      generatedAt: new Date().toISOString(),
+    }));
+  }
+
+  return reports;
 }
 
 export class DeterministicFallbackProvider implements MessageProvider {

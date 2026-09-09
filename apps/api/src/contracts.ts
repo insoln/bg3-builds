@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { OptimizationReport } from "@bg3-builds/domain";
 import { z } from "zod";
 
 export const conversationIdSchema = z.string().uuid();
@@ -6,12 +7,18 @@ export const createConversationSchema = z.object({ title: z.string().trim().min(
 export const updateConversationSchema = z.object({ title: z.string().trim().min(1).max(120) }).strict();
 export const sendMessageSchema = z.object({ content: z.string().trim().min(1).max(20_000) }).strict();
 
+export interface PersistedReport {
+  assistantMessageIndex: number;
+  report: OptimizationReport;
+}
+
 export interface Conversation {
   id: string;
   title?: string;
   createdAt: string;
   updatedAt: string;
   messages: Anthropic.MessageParam[];
+  reports: PersistedReport[];
 }
 
 export interface ConversationStore {
@@ -21,12 +28,14 @@ export interface ConversationStore {
   update(id: string, update: { title: string }): Promise<Conversation | undefined>;
   delete(id: string): Promise<boolean>;
   append(id: string, messages: Anthropic.MessageParam[]): Promise<Conversation | undefined>;
+  appendReports(id: string, reports: PersistedReport[]): Promise<Conversation | undefined>;
 }
 
 export type PublicMessage = {
   id: string;
   role: "user" | "assistant";
   text: string;
+  report?: OptimizationReport;
 };
 export type PublicConversation = Omit<Conversation, "messages"> & {
   messages: PublicMessage[];
@@ -48,7 +57,10 @@ export function toPublicConversation(conversation: Conversation): PublicConversa
         .filter((block): block is Anthropic.TextBlockParam => block.type === "text")
         .map((block) => block.text)
         .join("");
-      return text ? [{ id, role, text }] : [];
+      const report = conversation.reports.find((attachment) => attachment.assistantMessageIndex === index)?.report;
+      return text || report !== undefined
+        ? [{ id, role, text, ...(report === undefined ? {} : { report }) }]
+        : [];
     }),
   };
 }

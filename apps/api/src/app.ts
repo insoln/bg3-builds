@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type Anthropic from "@anthropic-ai/sdk";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { ZodError } from "zod";
 import {
@@ -8,7 +9,9 @@ import {
   toPublicConversation,
   updateConversationSchema,
   type ConversationStore,
+  type PersistedReport,
 } from "./contracts.js";
+import type { OptimizationReport } from "@bg3-builds/domain";
 import type { MessageProvider, StreamSink } from "./provider.js";
 
 export interface AppDependencies {
@@ -28,6 +31,26 @@ type StreamChannel = StreamSink & {
   fail(message: string): void;
 };
 
+export function attachReports(
+  reports: OptimizationReport[],
+  messageOffset: number,
+  generated: Anthropic.MessageParam[],
+): PersistedReport[] {
+  const report = reports.at(-1);
+  if (report === undefined) return [];
+
+  const generatedAssistantIndex = generated.reduce(
+    (index, message, currentIndex) => message.role === "assistant" ? currentIndex : index,
+    -1,
+  );
+  if (generatedAssistantIndex < 0) return [];
+
+  return [{
+    assistantMessageIndex: messageOffset + generatedAssistantIndex,
+    report,
+  }];
+}
+
 function sse(reply: FastifyReply): StreamChannel {
   reply.hijack();
   reply.raw.writeHead(200, {
@@ -42,6 +65,7 @@ function sse(reply: FastifyReply): StreamChannel {
   return {
     start: (messageId) => send({ type: "message_start", messageId }),
     text: (delta) => send({ type: "text_delta", delta }),
+    report: (report) => send({ type: "report", report }),
     status: (status) =>
       send({
         type: "tool_status",
@@ -144,6 +168,12 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       const userMessage = { role: "user" as const, content: input.content };
       await dependencies.store.append(id, [userMessage]);
       const channel = sse(reply);
+      const pendingReports: OptimizationReport[] = [];
+      const providerSink: StreamSink = {
+        text: channel.text,
+        status: channel.status,
+        report: (report) => pendingReports.push(report),
+      };
       channel.start(randomUUID());
       const controller = new AbortController();
       const cancel = () => controller.abort(new Error("Client disconnected"));
@@ -152,11 +182,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       try {
         const generated = await dependencies.provider.complete(
           [...conversation.messages, userMessage],
-          channel,
+          providerSink,
           controller.signal,
         );
         if (!controller.signal.aborted) {
           await dependencies.store.append(id, generated);
+          const reports = attachReports(pendingReports, conversation.messages.length + 1, generated);
+          if (reports.length > 0) await dependencies.store.appendReports(id, reports);
+          for (const { report } of reports) channel.report(report);
           channel.end();
         }
       } catch (cause) {

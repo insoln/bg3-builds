@@ -16,6 +16,17 @@ const absentTags = requiredTags.filter(
 const classCount = fixtureEntities.filter((entity) => entity.kind === "class").length;
 const itemCount = fixtureEntities.filter((entity) => entity.kind === "item").length;
 const issues = validateProvenance(fixtureEntities, fixtureSources, fixtureClaims);
+for (const entity of fixtureEntities) {
+  const actTags = entity.tags.filter((tag) => /^act-[123]$/.test(tag));
+  const availableAct = (entity.metadata?.["engine"] as { availableAct?: unknown } | undefined)?.availableAct;
+  if (actTags.length !== 1 || availableAct !== Number(actTags[0]?.at(-1))) {
+    issues.push({
+      code: "act-metadata",
+      message: `Expected ${entity.id} to have one Act tag matching engine.availableAct`,
+      entityId: entity.id,
+    });
+  }
+}
 
 if (classCount !== 12) {
   issues.push({
@@ -23,10 +34,10 @@ if (classCount !== 12) {
     message: `Expected 12 base classes, found ${classCount}`,
   });
 }
-if (itemCount < 30 || itemCount > 45) {
+if (itemCount < 30 || itemCount > 50) {
   issues.push({
     code: "item-coverage",
-    message: `Expected 30-45 representative items, found ${itemCount}`,
+    message: `Expected 30-50 representative items, found ${itemCount}`,
   });
 }
 

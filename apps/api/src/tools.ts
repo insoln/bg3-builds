@@ -1,26 +1,46 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { buildSchema, entityKindSchema, type Build, type EntityKind, type GameEntity } from "@bg3-builds/domain";
+import { buildSchema, entityKindSchema, optimizationRequestSchema, type Build, type EntityKind, type GameEntity, type OptimizationRequest, type OptimizerResult } from "@bg3-builds/domain";
 import { z } from "zod";
+
+type ValidationOptions = { availableAct?: 1 | 2 | 3 };
 
 export interface GameDataReader {
   searchEntities(input: { query?: string; kind?: EntityKind; limit: number }, signal?: AbortSignal): Promise<GameEntity[]>;
   getEntity(id: string, signal?: AbortSignal): Promise<GameEntity | undefined>;
-  validateBuild(build: Build, signal?: AbortSignal): Promise<unknown>;
-  compareBuilds(left: Build, right: Build, signal?: AbortSignal): Promise<unknown>;
+  validateBuild(build: Build, options?: ValidationOptions, signal?: AbortSignal): Promise<unknown>;
+  compareBuilds(left: Build, right: Build, options?: ValidationOptions, signal?: AbortSignal): Promise<unknown>;
+  optimizeBuild(input: OptimizationRequest, signal?: AbortSignal): Promise<OptimizerResult>;
 }
 
 export class EmptyGameDataReader implements GameDataReader {
   async searchEntities(): Promise<GameEntity[]> { return []; }
   async getEntity(): Promise<GameEntity | undefined> { return undefined; }
   async validateBuild(build: Build): Promise<unknown> { return { valid: true, build, issues: [] }; }
-  async compareBuilds(left: Build, right: Build): Promise<unknown> { return { left: left.name, right: right.name, differences: [] }; }
+  async compareBuilds(left: Build, right: Build): Promise<unknown> { return { accepted: true, validation: { left: { valid: true, issues: [] }, right: { valid: true, issues: [] } }, rejected: [], rankings: [{ build: left }, { build: right }] }; }
+  async optimizeBuild(): Promise<OptimizerResult> { throw new Error("Build optimization requires loaded game data."); }
 }
+
+const abilityScoresToolSchema = z.object({
+  strength: z.int().min(1).max(30),
+  dexterity: z.int().min(1).max(30),
+  constitution: z.int().min(1).max(30),
+  intelligence: z.int().min(1).max(30),
+  wisdom: z.int().min(1).max(30),
+  charisma: z.int().min(1).max(30),
+}).strict();
+
+// Zod renders abilityScores as a record with schema-valued additionalProperties.
+// Anthropic strict tool schemas require closed objects, so expose an equivalent
+// explicit object to the model and retain buildSchema for runtime validation.
+const toolBuildSchema = buildSchema.safeExtend({ abilityScores: abilityScoresToolSchema });
+const availableActSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]).optional();
 
 const schemas = {
   search_entities: z.object({ query: z.string().trim().min(1).max(200).optional(), kind: entityKindSchema.optional(), limit: z.int().min(1).max(25).default(10) }).strict(),
   get_entity: z.object({ id: z.string().trim().min(1).max(160) }).strict(),
-  validate_build: z.object({ build: buildSchema }).strict(),
-  compare_builds: z.object({ left: buildSchema, right: buildSchema }).strict(),
+  validate_build: z.object({ build: toolBuildSchema, availableAct: availableActSchema }).strict(),
+  compare_builds: z.object({ left: toolBuildSchema, right: toolBuildSchema, availableAct: availableActSchema }).strict(),
+  optimize_build: z.object({ request: optimizationRequestSchema }).strict(),
 };
 
 type ToolName = keyof typeof schemas;
@@ -77,8 +97,9 @@ function definition(name: ToolName, description: string): Anthropic.Tool {
 export const gameTools: Anthropic.Tool[] = [
   definition("search_entities", "Search the available Baldur's Gate 3 classes, races, feats, spells, items, and other entities."),
   definition("get_entity", "Get one Baldur's Gate 3 entity by its exact ID."),
-  definition("validate_build", "Validate a complete Baldur's Gate 3 build and return its issues."),
-  definition("compare_builds", "Compare two complete Baldur's Gate 3 builds."),
+  definition("validate_build", "Validate a complete Baldur's Gate 3 build and return its issues. Optionally set availableAct to reject equipment unavailable before that act."),
+  definition("compare_builds", "Validate both complete Baldur's Gate 3 builds before comparing them. Optionally set availableAct to reject equipment unavailable before that act; invalid candidates are returned as rejections and are never ranked."),
+  definition("optimize_build", "Exactly rank the finite curated legal Level 5, Act 1, single-target ranged candidate set by Nova expected damage. The request must explicitly provide targetInitiativeModifier, targetDexterityScore, equalTotalAndDexterity, and surprisedDeniedTurnCountsAsTaken whenever combat inputs are supplied; ask the user to resolve missing or ambiguous values instead of inventing conversational defaults. Returns named damage windows plus deterministic d4 initiative timelines for separate no-surprise and surprised branches, including weighted probability of killing before the target's first actionable turn. This is not a global optimum; setup effects, Battle Master superiority dice, guaranteed critical hits, area attacks, and other declared exclusions remain unsupported."),
 ];
 
 export async function executeGameTool(reader: GameDataReader, use: Anthropic.ToolUseBlock, signal?: AbortSignal): Promise<Anthropic.ToolResultBlockParam> {
@@ -92,12 +113,17 @@ export async function executeGameTool(reader: GameDataReader, use: Anthropic.Too
         break;
       }
       case "get_entity": result = await reader.getEntity(schemas.get_entity.parse(use.input).id, signal) ?? { found: false }; break;
-      case "validate_build": result = await reader.validateBuild(schemas.validate_build.parse(use.input)["build"], signal); break;
-      case "compare_builds": {
-        const input = schemas.compare_builds.parse(use.input);
-        result = await reader.compareBuilds(input["left"], input["right"], signal);
+      case "validate_build": {
+        const input = schemas.validate_build.parse(use.input);
+        result = await reader.validateBuild(input.build, input.availableAct === undefined ? undefined : { availableAct: input.availableAct }, signal);
         break;
       }
+      case "compare_builds": {
+        const input = schemas.compare_builds.parse(use.input);
+        result = await reader.compareBuilds(input.left, input.right, input.availableAct === undefined ? undefined : { availableAct: input.availableAct }, signal);
+        break;
+      }
+      case "optimize_build": result = await reader.optimizeBuild(schemas.optimize_build.parse(use.input).request, signal); break;
       default: throw new Error(`Unknown tool: ${use.name}`);
     }
     signal?.throwIfAborted();

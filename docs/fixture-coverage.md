@@ -13,3 +13,5 @@ Run `pnpm verify:fixtures`. Verification requires:
 - valid source/entity provenance references and one classification claim per entity.
 
 This fixture is test/demo input, not a complete game database. Item mechanics, acquisition details, patch-specific conditions, and precise numerical effects must be imported as provenance-backed claims before deterministic calculations may rely on them.
+
+The v3 ranged timeline slice relies only on executable fixture metadata for four bows, Archery, Extra Attack, Sharpshooter, Action Surge, Dread Ambusher, Sneak Attack, and Assassin. Its 24 candidates, opener/Nova/steady schedules, recovery cadence, and grouped timeline events/features are curated engine inputs, not behavior inferred from wiki prose. Timeline coverage enumerates all 16 equally likely d4 initiative pairs and keeps no-surprise and surprised branches separate under explicit tie and denied-turn assumptions. Setup effects, arbitrary guaranteed-critical state, and Battle Master superiority-die consumption remain non-executable until equally strict provenance-backed state rules are added.

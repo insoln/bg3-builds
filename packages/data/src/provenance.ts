@@ -12,26 +12,18 @@ function sourceKey(url: string, gameVersion: string): string {
   return `${url}\0${gameVersion}`;
 }
 
-function sourceOriginKey(url: string, gameVersion: string): string {
-  const parsed = new URL(url);
-  return `${parsed.protocol}//${parsed.host}\0${gameVersion}`;
-}
-
 export function validateProvenance(
   entities: readonly GameEntity[],
   sources: readonly SourceRecord[],
   claims: readonly Claim[],
 ): ProvenanceIssue[] {
-  const sourceIds = new Set(sources.map((source) => source.id));
-  const entityIds = new Set(entities.map((entity) => entity.id));
+  const sourcesById = new Map(sources.map((source) => [source.id, source]));
+  const entitiesById = new Map(entities.map((entity) => [entity.id, entity]));
   const sourcesWithUrls = sources.filter(
     (source): source is SourceRecord & { url: string } => source.url !== undefined,
   );
   const registeredSources = new Set(
     sourcesWithUrls.map((source) => sourceKey(source.url, source.gameVersion)),
-  );
-  const registeredOrigins = new Set(
-    sourcesWithUrls.map((source) => sourceOriginKey(source.url, source.gameVersion)),
   );
   const issues: ProvenanceIssue[] = [];
 
@@ -47,7 +39,6 @@ export function validateProvenance(
     if (
       entity.source.url
       && !registeredSources.has(sourceKey(entity.source.url, entity.source.gameVersion))
-      && !registeredOrigins.has(sourceOriginKey(entity.source.url, entity.source.gameVersion))
     ) {
       issues.push({
         code: "unregistered-source",
@@ -58,17 +49,31 @@ export function validateProvenance(
   }
 
   for (const claim of claims) {
-    if (!entityIds.has(claim.entityId)) {
+    const entity = entitiesById.get(claim.entityId);
+    const source = sourcesById.get(claim.sourceId);
+    if (!entity) {
       issues.push({
         code: "unknown-entity",
         message: "Claim references unknown entity",
         claimId: claim.id,
       });
     }
-    if (!sourceIds.has(claim.sourceId)) {
+    if (!source) {
       issues.push({
         code: "unknown-source",
         message: "Claim references unknown source",
+        claimId: claim.id,
+      });
+    } else if (
+      entity?.source.url
+      && (source.url !== entity.source.url
+        || source.gameVersion !== entity.source.gameVersion
+        || claim.locator !== entity.source.url)
+    ) {
+      issues.push({
+        code: "source-mismatch",
+        message: "Claim source and locator do not match the entity canonical source",
+        entityId: claim.entityId,
         claimId: claim.id,
       });
     }

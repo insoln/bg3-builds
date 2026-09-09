@@ -9,7 +9,7 @@ export function hitChance(attackBonus: number, armorClass: number, advantage: "n
 }
 
 export function mitigateDamage(amount: number, damageType: DamageType, resistances: readonly DamageType[], flatReduction = 0): { value: number; trace: ExplainTrace[] } {
-  const resisted = resistances.includes(damageType) ? amount / 2 : amount;
+  const resisted = resistances.includes(damageType) ? Math.floor(amount / 2) : amount;
   const value = Math.max(0, resisted - flatReduction);
   return { value, trace: [
     { step: "resistance", message: "Applied resistance before flat damage reduction", input: { amount, damageType, resisted: resistances.includes(damageType) }, output: resisted },
