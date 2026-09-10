@@ -61,25 +61,33 @@ function sse(reply: FastifyReply): StreamChannel {
   });
   const send = (event: { type: string } & Record<string, unknown>) =>
     reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  const sendBuildAnalysisStatus = (
+    status: "queued" | "running" | "complete" | "error",
+    detail?: string,
+  ) => send({
+    type: "tool_status",
+    tool: {
+      id: "build-analysis",
+      label: "Build analysis",
+      status,
+      ...(detail === undefined ? {} : { detail }),
+    },
+  });
 
   return {
     start: (messageId) => send({ type: "message_start", messageId }),
     text: (delta) => send({ type: "text_delta", delta }),
     report: (report) => send({ type: "report", report }),
-    status: (status) =>
-      send({
-        type: "tool_status",
-        tool: {
-          id: "build-analysis",
-          label: "Build analysis",
-          status: status === "tool" ? "running" : "queued",
-        },
-      }),
+    status: (status) => sendBuildAnalysisStatus(
+      status === "tool" ? "running" : "queued",
+    ),
     end: () => {
+      sendBuildAnalysisStatus("complete");
       send({ type: "message_end" });
       reply.raw.end();
     },
     fail: (message) => {
+      sendBuildAnalysisStatus("error", message);
       send({ type: "error", error: { code: "STREAM_ERROR", message } });
       reply.raw.end();
     },
@@ -194,7 +202,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
         }
       } catch (cause) {
         if (!controller.signal.aborted) {
-          channel.fail(cause instanceof Error ? cause.message : "Generation failed");
+          const message = cause instanceof Error ? cause.message : "Generation failed";
+          channel.fail(message);
         }
       } finally {
         request.raw.off("aborted", cancel);

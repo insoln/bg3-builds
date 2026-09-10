@@ -5,13 +5,45 @@ export type ChatAction = { type: "submit"; user: ChatMessage; assistantId: strin
 
 export const initialChatState: ChatState = { messages: [], status: "idle" };
 
+function finishTools(
+  tools: NonNullable<ChatMessage["tools"]>,
+  status: "complete" | "error",
+): NonNullable<ChatMessage["tools"]> {
+  if (!tools.some((tool) => tool.status === "queued" || tool.status === "running")) {
+    return tools;
+  }
+  return tools.map((tool) =>
+    tool.status === "queued" || tool.status === "running"
+      ? { ...tool, status }
+      : tool,
+  );
+}
+
+function finishActiveTools(
+  messages: ChatMessage[],
+  activeMessageId: string | undefined,
+  status: "complete" | "error",
+): ChatMessage[] {
+  if (!activeMessageId) return messages;
+  return messages.map((message) => {
+    if (message.id !== activeMessageId) return message;
+    const currentTools = message.tools;
+    if (currentTools === undefined) return message;
+    const tools = finishTools(currentTools, status);
+    return tools === currentTools ? message : { ...message, tools };
+  });
+}
+
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   if (action.type === "reset") return { messages: action.messages, status: "idle" };
   if (action.type === "submit") return {
     messages: [...state.messages, action.user, { id: action.assistantId, role: "assistant", text: "", tools: [] }],
     status: "streaming", activeMessageId: action.assistantId,
   };
-  if (action.type === "stopped") return { messages: state.messages, status: "idle" };
+  if (action.type === "stopped") return {
+    messages: finishActiveTools(state.messages, state.activeMessageId, "error"),
+    status: "idle",
+  };
   const event = action.event;
   if (event.type === "message_start") {
     const pendingId = state.activeMessageId;
@@ -20,14 +52,26 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       : [...state.messages, { id: event.messageId, role: "assistant" as const, text: "", tools: [] }];
     return { ...state, messages, activeMessageId: event.messageId, status: "streaming" };
   }
-  if (event.type === "message_end") return { messages: state.messages, status: "idle" };
+  if (event.type === "message_end") return {
+    messages: finishActiveTools(state.messages, state.activeMessageId, "complete"),
+    status: "idle",
+  };
   const activeId = state.activeMessageId;
   if (!activeId) return state;
   const messages = state.messages.map((message): ChatMessage => {
     if (message.id !== activeId) return message;
     if (event.type === "text_delta") return { ...message, text: message.text + event.delta };
     if (event.type === "report") return { ...message, report: event.report };
-    if (event.type === "error") return { ...message, error: event.error.message };
+    if (event.type === "error") {
+      const tools = message.tools === undefined
+        ? undefined
+        : finishTools(message.tools, "error");
+      return {
+        ...message,
+        error: event.error.message,
+        ...(tools === undefined ? {} : { tools }),
+      };
+    }
     if (event.type === "tool_status") {
       const tools = message.tools ?? [];
       const index = tools.findIndex(tool => tool.id === event.tool.id);

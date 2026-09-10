@@ -12,13 +12,18 @@ export async function* parseSSE(
   const decoder = new TextDecoder();
   let buffer = "";
   let dataLines: string[] = [];
+  let terminalEventReceived = false;
 
   const emit = (): StreamEvent | undefined => {
     if (!dataLines.length) return;
     const payload = dataLines.join("\n");
     dataLines = [];
     try {
-      return parseStreamEvent(JSON.parse(payload));
+      const event = parseStreamEvent(JSON.parse(payload));
+      if (event.type === "message_end" || event.type === "error") {
+        terminalEventReceived = true;
+      }
+      return event;
     } catch {
       throw new Error("The server sent an invalid streaming event.");
     }
@@ -42,6 +47,9 @@ export async function* parseSSE(
   if (buffer.startsWith("data:")) dataLines.push(buffer.slice(5).trimStart());
   const event = emit();
   if (event) yield event;
+  if (!terminalEventReceived) {
+    throw new Error("The build response ended before completion.");
+  }
 }
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
