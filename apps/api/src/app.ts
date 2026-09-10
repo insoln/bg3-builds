@@ -78,9 +78,14 @@ function sse(reply: FastifyReply): StreamChannel {
     start: (messageId) => send({ type: "message_start", messageId }),
     text: (delta) => send({ type: "text_delta", delta }),
     report: (report) => send({ type: "report", report }),
-    status: (status) => sendBuildAnalysisStatus(
-      status === "tool" ? "running" : "queued",
-    ),
+    status: (status) => {
+      const phase = status === "tool"
+        ? { status: "running" as const, detail: "Checking game data" }
+        : status === "paused"
+          ? { status: "queued" as const, detail: "Continuing analysis" }
+          : { status: "queued" as const, detail: "Analyzing your request" };
+      sendBuildAnalysisStatus(phase.status, phase.detail);
+    },
     end: () => {
       sendBuildAnalysisStatus("complete");
       send({ type: "message_end" });

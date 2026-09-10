@@ -122,12 +122,14 @@ export default function App() {
     const assistantId = newId();
     setDraft("");
     setLastPrompt(trimmed);
-    dispatch({ type: "submit", user, assistantId });
+    dispatch({ type: "submit", user, assistantId, now: Date.now() });
     const controller = new AbortController();
     abortRef.current = controller;
     try {
       const stream = await streamChat(activeId, trimmed, controller.signal);
-      for await (const event of parseSSE(stream)) dispatch({ type: "event", event });
+      for await (const event of parseSSE(stream)) {
+        dispatch({ type: "event", event, receivedAt: Date.now() });
+      }
     } catch (error) {
       if (controller.signal.aborted) return;
       dispatch({
@@ -139,13 +141,14 @@ export default function App() {
               error instanceof Error ? error.message : "The build request failed.",
           },
         },
+        receivedAt: Date.now(),
       });
     }
   }
 
   function stop() {
     abortRef.current?.abort();
-    dispatch({ type: "stopped" });
+    dispatch({ type: "stopped", now: Date.now() });
   }
 
   async function newConversation() {
@@ -174,7 +177,12 @@ export default function App() {
     {sidebarOpen && <button className="scrim" onClick={closeSidebar} aria-label="Close conversations" />}
     <main className="chat">
       <header className="chat-header"><button ref={menuRef} className="menu-button" onClick={() => setSidebarOpen(true)} aria-label="Open conversations" aria-expanded={sidebarOpen}>☰</button><div><h1>{title}</h1><p>Rules checked against Patch 8</p></div><span className="mode-mark">Honour ready</span></header>
-      <div className="thread" aria-live="polite">{loadError && <div className="error-callout" role="alert"><strong>Build service unavailable</strong><p>{loadError}</p></div>}{state.messages.length === 0 && !loadError && <div className="empty-state"><div className="empty-rune">20</div><h2>What should this hero do?</h2><p>Name a playstyle, party role, difficulty, or item you want to build around.</p><div className="suggestions">{["A durable Honour Mode frontliner", "A no-consumables lightning caster", "A stealth build online in Act 1"].map(text => <button key={text} onClick={() => { setDraft(text); textareaRef.current?.focus(); }}>{text}</button>)}</div></div>}{state.messages.map(message => <article className={`message message--${message.role}`} key={message.id}><div className="message__identity">{message.role === "user" ? "You" : <><span aria-hidden="true">✦</span> Build advisor</>}</div><div className="message__body">{message.text && <MessageText role={message.role} text={message.text} />}<ToolActivity tools={message.tools ?? []} />{message.report && <OptimizationReportCard report={message.report} />}{message.error && <div className="error-callout" role="alert"><strong>Couldn’t finish this build</strong><p>{message.error}</p></div>}{state.status === "streaming" && state.activeMessageId === message.id && !message.text && !(message.tools?.length) && <span className="thinking">Consulting the ledger…</span>}</div></article>)}<div ref={endRef} /></div>
+      <div className="thread" aria-live="polite">{loadError && <div className="error-callout" role="alert"><strong>Build service unavailable</strong><p>{loadError}</p></div>}{state.messages.length === 0 && !loadError && <div className="empty-state"><div className="empty-rune">20</div><h2>What should this hero do?</h2><p>Name a playstyle, party role, difficulty, or item you want to build around.</p><div className="suggestions">{["A durable Honour Mode frontliner", "A no-consumables lightning caster", "A stealth build online in Act 1"].map(text => <button key={text} onClick={() => { setDraft(text); textareaRef.current?.focus(); }}>{text}</button>)}</div></div>}{state.messages.map(message => <article className={`message message--${message.role}`} key={message.id}><div className="message__identity">{message.role === "user" ? "You" : <><span aria-hidden="true">✦</span> Build advisor</>}</div><div className="message__body">{message.text && <MessageText role={message.role} text={message.text} />}<ToolActivity
+  tools={message.tools ?? []}
+  {...(state.streamActivity?.messageId === message.id
+    ? { activity: state.streamActivity }
+    : {})}
+/>{message.report && <OptimizationReportCard report={message.report} />}{message.error && <div className="error-callout" role="alert"><strong>Couldn’t finish this build</strong><p>{message.error}</p></div>}{state.status === "streaming" && state.activeMessageId === message.id && !message.text && !(message.tools?.length) && <span className="thinking">Consulting the ledger…</span>}</div></article>)}<div ref={endRef} /></div>
       <div className="composer-wrap"><form id="composer" className="composer" onSubmit={e => { e.preventDefault(); void send(draft); }}><label className="sr-only" htmlFor="message">Describe your build</label><textarea ref={textareaRef} id="message" value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(draft); } }} placeholder="Ask for a build, comparison, or rules check…" rows={1} /><div className="composer__bottom"><span>Enter to send · Shift+Enter for a new line</span>{state.status === "streaming" ? <button type="button" className="send-button stop" onClick={stop} aria-label="Stop generating"><span /></button> : <button type="submit" className="send-button" disabled={!draft.trim() || !activeId} aria-label="Send message">↑</button>}</div></form>{state.status === "error" && <button className="retry" onClick={() => void send(lastPrompt)}>Retry last request</button>}<p className="disclaimer">Builds are calculated from structured game data. Verify modded or recently patched mechanics in game.</p></div>
     </main>
   </div>;

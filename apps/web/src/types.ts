@@ -27,7 +27,7 @@ export interface StructuredBuildReport {
   unsupportedMechanics?: string[];
 }
 
-export type ToolStatus = "queued" | "running" | "complete" | "error";
+export type ToolStatus = "queued" | "running" | "complete" | "error" | "stopped";
 export interface ToolActivity { id: string; label: string; status: ToolStatus; detail?: string | undefined }
 export interface ChatMessage { id: string; role: "user" | "assistant"; text: string; report?: OptimizationReport; tools?: ToolActivity[]; error?: string }
 export interface Conversation {
@@ -49,7 +49,7 @@ export type StreamEvent =
 const toolActivitySchema = z.object({
   id: z.string(),
   label: z.string(),
-  status: z.enum(["queued", "running", "complete", "error"]),
+  status: z.enum(["queued", "running", "complete", "error", "stopped"]),
   detail: z.string().optional(),
 }).strict();
 

@@ -1,13 +1,30 @@
 import type { ChatMessage, StreamEvent } from "../types";
 
-export interface ChatState { messages: ChatMessage[]; status: "idle" | "streaming" | "error"; activeMessageId?: string }
-export type ChatAction = { type: "submit"; user: ChatMessage; assistantId: string } | { type: "event"; event: StreamEvent } | { type: "stopped" } | { type: "reset"; messages: ChatMessage[] };
+export interface StreamActivity {
+  messageId: string;
+  startedAt: number;
+  lastEventAt: number;
+  endedAt?: number;
+}
+
+export interface ChatState {
+  messages: ChatMessage[];
+  status: "idle" | "streaming" | "error";
+  activeMessageId?: string;
+  streamActivity?: StreamActivity;
+}
+
+export type ChatAction =
+  | { type: "submit"; user: ChatMessage; assistantId: string; now: number }
+  | { type: "event"; event: StreamEvent; receivedAt: number }
+  | { type: "stopped"; now: number }
+  | { type: "reset"; messages: ChatMessage[] };
 
 export const initialChatState: ChatState = { messages: [], status: "idle" };
 
 function finishTools(
   tools: NonNullable<ChatMessage["tools"]>,
-  status: "complete" | "error",
+  status: "complete" | "error" | "stopped",
 ): NonNullable<ChatMessage["tools"]> {
   if (!tools.some((tool) => tool.status === "queued" || tool.status === "running")) {
     return tools;
@@ -22,7 +39,7 @@ function finishTools(
 function finishActiveTools(
   messages: ChatMessage[],
   activeMessageId: string | undefined,
-  status: "complete" | "error",
+  status: "complete" | "error" | "stopped",
 ): ChatMessage[] {
   if (!activeMessageId) return messages;
   return messages.map((message) => {
@@ -38,23 +55,46 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   if (action.type === "reset") return { messages: action.messages, status: "idle" };
   if (action.type === "submit") return {
     messages: [...state.messages, action.user, { id: action.assistantId, role: "assistant", text: "", tools: [] }],
-    status: "streaming", activeMessageId: action.assistantId,
+    status: "streaming",
+    activeMessageId: action.assistantId,
+    streamActivity: {
+      messageId: action.assistantId,
+      startedAt: action.now,
+      lastEventAt: action.now,
+    },
   };
   if (action.type === "stopped") return {
-    messages: finishActiveTools(state.messages, state.activeMessageId, "error"),
+    messages: finishActiveTools(state.messages, state.activeMessageId, "stopped"),
     status: "idle",
+    ...(state.streamActivity === undefined
+      ? {}
+      : { streamActivity: { ...state.streamActivity, endedAt: action.now } }),
   };
   const event = action.event;
+  const streamActivity = state.streamActivity === undefined
+    ? undefined
+    : { ...state.streamActivity, lastEventAt: action.receivedAt };
   if (event.type === "message_start") {
     const pendingId = state.activeMessageId;
     const messages = pendingId
       ? state.messages.map((message) => message.id === pendingId ? { ...message, id: event.messageId } : message)
       : [...state.messages, { id: event.messageId, role: "assistant" as const, text: "", tools: [] }];
-    return { ...state, messages, activeMessageId: event.messageId, status: "streaming" };
+    return {
+      ...state,
+      messages,
+      activeMessageId: event.messageId,
+      status: "streaming",
+      ...(streamActivity === undefined
+        ? {}
+        : { streamActivity: { ...streamActivity, messageId: event.messageId } }),
+    };
   }
   if (event.type === "message_end") return {
     messages: finishActiveTools(state.messages, state.activeMessageId, "complete"),
     status: "idle",
+    ...(streamActivity === undefined
+      ? {}
+      : { streamActivity: { ...streamActivity, endedAt: action.receivedAt } }),
   };
   const activeId = state.activeMessageId;
   if (!activeId) return state;
@@ -79,6 +119,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
     return message;
   });
-  if (event.type === "error") return { messages, status: "error" };
-  return { ...state, messages };
+  if (event.type === "error") return {
+    messages,
+    status: "error",
+    ...(streamActivity === undefined
+      ? {}
+      : { streamActivity: { ...streamActivity, endedAt: action.receivedAt } }),
+  };
+  return {
+    ...state,
+    messages,
+    ...(streamActivity === undefined ? {} : { streamActivity }),
+  };
 }
